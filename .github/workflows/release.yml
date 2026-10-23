@@ -1,0 +1,73 @@
+name: Release
+
+# Cut a release by pushing a tag: git tag netease-v1.0.0 && git push origin netease-v1.0.0
+on:
+  push:
+    tags: ["netease-v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write
+
+# Releases publish a merged index, so they must not race each other.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  INDEX_URL: https://github.com/thedavidweng/openkara-sources/releases/latest/download/source-index.json
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.21.0
+
+      - name: Check the tag matches the package version
+        run: |
+          version="${GITHUB_REF_NAME#netease-v}"
+          manifest="$(node -p "require('./packages/netease/manifest.json').version")"
+          package="$(node -p "require('./packages/netease/package.json').version")"
+          if [ "$version" != "$manifest" ] || [ "$version" != "$package" ]; then
+            echo "tag version $version, manifest $manifest, package.json $package must all match" >&2
+            exit 1
+          fi
+
+      - run: npm test
+
+      - name: Build the package archive
+        run: node scripts/build-package.mjs --package netease --out dist
+
+      - name: Fetch the previously published index
+        run: |
+          status="$(curl -sSL -o previous-index.json -w '%{http_code}' "$INDEX_URL")"
+          case "$status" in
+            200) echo "PREVIOUS_ARGS=--previous previous-index.json" >> "$GITHUB_ENV" ;;
+            404) rm -f previous-index.json ;;
+            *) echo "unexpected HTTP $status fetching the previous index" >&2; exit 1 ;;
+          esac
+
+      - name: Build and sign the index
+        env:
+          OPENKARA_SOURCE_SIGNING_CURRENT_PRIVATE_KEY: ${{ secrets.OPENKARA_SOURCE_SIGNING_CURRENT_PRIVATE_KEY }}
+        run: |
+          node scripts/build-index.mjs --package netease --archive "dist/openkara-source-netease-${GITHUB_REF_NAME#netease-v}.tar.gz.meta.json" ${PREVIOUS_ARGS:-} --out dist/source-index.json --key-slot current
+          node scripts/verify-index.mjs dist/source-index.json
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/openkara-source-netease-${GITHUB_REF_NAME#netease-v}.tar.gz" \
+            dist/source-index.json \
+            --title "NetEase source ${GITHUB_REF_NAME#netease-v}" \
+            --notes "NetEase Streaming Source package ${GITHUB_REF_NAME#netease-v}. source-index.json carries every published release." \
+            --verify-tag --latest
+
+      - name: Verify the published index
+        run: node scripts/verify-index.mjs "$INDEX_URL"

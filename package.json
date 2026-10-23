@@ -1,0 +1,12 @@
+{
+  "name": "openkara-sources",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "build": "node scripts/build-package.mjs",
+    "index": "node scripts/build-index.mjs"
+  },
+  "engines": { "node": ">=24 <25" }
+}

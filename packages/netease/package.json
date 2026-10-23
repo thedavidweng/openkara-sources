@@ -1,0 +1,13 @@
+{
+  "name": "@openkara/source-netease",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.40.1"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
