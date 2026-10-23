@@ -69,5 +69,11 @@ jobs:
             --notes "NetEase Streaming Source package ${GITHUB_REF_NAME#netease-v}. source-index.json carries every published release." \
             --verify-tag --latest
 
+      # The latest/download redirect can lag a freshly created release.
       - name: Verify the published index
-        run: node scripts/verify-index.mjs "$INDEX_URL"
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            node scripts/verify-index.mjs "$INDEX_URL" && exit 0
+            sleep 20
+          done
+          exit 1
