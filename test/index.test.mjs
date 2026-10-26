@@ -15,6 +15,7 @@ import { MANIFEST } from "./support/client.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pin = JSON.parse(readFileSync(join(root, "data", "source-runtime.json"), "utf8"));
 const repo = "thedavidweng/openkara-sources";
+const indexManifest = { ...MANIFEST, version: "1.0.0" };
 
 // A throwaway key pair standing in for a trust slot.
 const { privateKey } = generateKeyPairSync("ed25519");
@@ -27,9 +28,9 @@ const archive = (version = "1.0.0", sha = "a".repeat(64)) => ({
   size: 1234,
   sha256: sha,
 });
-const manifestFor = (version) => ({ ...MANIFEST, version });
+const manifestFor = (version) => ({ ...indexManifest, version });
 const build = (extra = {}) =>
-  buildSignedIndex({ manifest: MANIFEST, archive: archive(), pin, repo, revocations: {}, privateKey, slot: "current", trusted, ...extra });
+  buildSignedIndex({ manifest: indexManifest, archive: archive(), pin, repo, revocations: {}, privateKey, slot: "current", trusted, ...extra });
 
 test("embedded trust anchors are internally consistent", () => {
   for (const key of Object.values(TRUSTED_KEYS)) {
@@ -59,7 +60,7 @@ test("a first index is signed, valid and verifiable", () => {
   assert.equal(payload.generation, 1);
   assert.deepEqual(validateIndexPayload(payload), []);
   const release = payload.sources[0].releases[0];
-  assert.equal(release.archive.url, `https://github.com/${repo}/releases/download/${releaseTag(MANIFEST)}/openkara-source-netease-1.0.0.tar.gz`);
+  assert.equal(release.archive.url, `https://github.com/${repo}/releases/download/${releaseTag(indexManifest)}/openkara-source-netease-1.0.0.tar.gz`);
   assert.equal(release.archive.executable, undefined);
   assert.equal(release.runtime.targets["macos-aarch64"].format, "tar.gz");
 });
