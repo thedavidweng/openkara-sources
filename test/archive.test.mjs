@@ -11,6 +11,7 @@ import { buildPackage, verifyArchiveFile } from "../scripts/lib/package-build.mj
 import { readTar, writeTar } from "../scripts/lib/tar.mjs";
 import { relativePathError, validateArchiveEntries } from "../scripts/lib/host-rules.mjs";
 import { MANIFEST, PACKAGE_DIR } from "./support/client.mjs";
+import { checkDependencySecurity } from "./support/dependency-security.mjs";
 
 const scratch = () => mkdtempSync(join(tmpdir(), "sources-archive-"));
 
@@ -150,6 +151,7 @@ test(
       mkdirSync(target);
       const untar = spawnSync("tar", ["xzf", archive, "-C", target]);
       assert.equal(untar.status, 0, untar.stderr?.toString());
+      checkDependencySecurity(target);
       // Run exactly as the host does: cwd = package dir, argv = <package>/<entry>, cleared env.
       const child = spawn(process.execPath, [join(target, MANIFEST.entry)], {
         cwd: target,
