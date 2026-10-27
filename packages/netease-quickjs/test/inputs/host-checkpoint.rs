@@ -12,11 +12,13 @@ use std::time::Duration;
 const MUSIC: &str = "https://music.163.com";
 const INTERFACEPC: &str = "https://interfacepc.music.163.com";
 
-const BUNDLE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../bundle-entry.mjs"));
+const BUNDLE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../pkg-real/package/dist/entry.mjs"));
 
 fn producer_manifest() -> SourceManifest {
+    // The real package manifest from the final tarball (entry manifest
+    // identity must equal the installed files; no test substitute).
     let mut manifest: SourceManifest =
-        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/entry-manifest.json"))).unwrap();
+        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../pkg-real/package/manifest.json"))).unwrap();
     manifest.source_id = "netease".into();
     manifest.package_id = "org.openkara.netease-quickjs".into();
     manifest.publisher = "org.openkara".into();
@@ -150,4 +152,183 @@ async fn producer_search_maps_weapi_and_eapi_results() {
     assert_eq!(found["items"][0]["id"], "11");
     account.assert_async().await;
     cloud.assert_async().await;
+}
+
+const SYNTH_CREDS: &str = "bindingsynthetic0000000000001";
+const SYNTH_CSRF: &str = "csrf000000000000000000000001";
+
+fn synth_creds() -> Value {
+    json!({"credentials": {"MUSIC_U": SYNTH_CREDS, "__csrf": SYNTH_CSRF}})
+}
+
+async fn restore(fi_item: &mut ProducerFixture) {
+    let account = mock_account(&mut fi_item.music, 1).await;
+    let restored = fi_item.call("session.restore", synth_creds()).await;
+    assert_eq!(restored["state"], "signed_in");
+    assert_eq!(restored["account"]["id"], "424242");
+    account.assert_async().await;
+}
+
+#[tokio::test]
+async fn producer_all_seven_operations_map_responses() {
+    // weapi: user_account (auth), user_playlist, song_detail.
+    // eapi:  likelist, playlist_detail, cloudsearch, song_url.
+    let mut fixture = ProducerFixture::new().await;
+    restore(&mut fixture).await;
+
+    let playlist = fixture
+        .music
+        .mock("POST", "/weapi/user/playlist")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"playlist":[{"id":9,"name":"pl","coverImgUrl":"https://p2.music.126.net/x.jpg","trackCount":1}],"more":false}).to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let detail = fixture
+        .music
+        .mock("POST", "/weapi/v3/song/detail")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"songs":[{"id":5,"name":"s","al":{"picUrl":"https://P1.MUSIC.126.NET/a.jpg"},"ar":[{"name":"ar"}],"dt":1000}],"privileges":[{"pl":1}]}).to_string(),
+        )
+        // liked_tracks caches id 5; later playlist.tracks/tracks.get reuse
+        // the cache, so only the first miss hits the wire.
+        .expect(1)
+        .create_async()
+        .await;
+    let likelist = fixture
+        .interfacepc
+        .mock("POST", "/eapi/song/like/get")
+        .with_status(200)
+        .with_body(json!({"code":200,"ids":[5]}).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let detail_pl = fixture
+        .interfacepc
+        .mock("POST", "/eapi/v6/playlist/detail")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"playlist":{"id":9,"name":"pl","trackIds":[{"id":5}]}}).to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let cloud = fixture
+        .interfacepc
+        .mock("POST", "/eapi/cloudsearch/pc")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"result":{"songs":[{"id":5,"name":"s","al":{},"ar":[]}],"songCount":1}}).to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let url = fixture
+        .interfacepc
+        .mock("POST", "/eapi/song/enhance/player/url")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"data":[{"id":5,"url":"https://m7.music.126.net:443/f.mp3","type":"mp3","expi":100,"br":320000}]}).to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let playlists = fixture.call("playlists", json!({})).await;
+    assert_eq!(playlists["items"][0]["id"], "9");
+    let liked = fixture.call("liked_tracks", json!({})).await;
+    assert_eq!(liked["items"][0]["id"], "5");
+    let tracks = fixture
+        .call("playlist.tracks", json!({"playlist_id": "9"}))
+        .await;
+    assert_eq!(tracks["items"][0]["id"], "5");
+    let got = fixture.call("tracks.get", json!({"track_ids": ["5"]})).await;
+    assert_eq!(got["items"][0]["id"], "5");
+    let found = fixture.call("search", json!({"query": "song"})).await;
+    assert_eq!(found["items"][0]["id"], "5");
+    let media = fixture
+        .call("media.resolve", json!({"track_id": "5", "purpose": "preview"}))
+        .await;
+    assert_eq!(media["kind"], "media");
+    assert_eq!(media["media"]["file_extension"], "mp3");
+
+    for mock in [playlist, detail, likelist, detail_pl, cloud, url] {
+        mock.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn producer_failure_and_privacy_paths_stay_safe() {
+    let mut fixture = ProducerFixture::new().await;
+    // 301 from the auth probe -> session_expired, never signed in.
+    let denied = fixture
+        .music
+        .mock("POST", "/weapi/nuser/account/get")
+        .with_status(200)
+        .with_body(r#"{"code":301}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let expired = fixture.host.request("netease", "session.restore", synth_creds()).await;
+    assert_eq!(expired.unwrap_err().code, "session_expired");
+    denied.assert_async().await;
+
+    restore(&mut fixture).await;
+    let track_detail = fixture
+        .music
+        .mock("POST", "/weapi/v3/song/detail")
+        .with_status(200)
+        .with_body(
+            json!({"code":200,"songs":[{"id":5,"name":"s","al":{},"ar":[]}],"privileges":[]}).to_string(),
+        )
+        // The second media.resolve reuses the cached track; only the first
+        // miss hits the wire.
+        .expect(1)
+        .create_async()
+        .await;
+    // Upstream 404 on search -> not_found (no leak of the raw body).
+    let missing = fixture
+        .interfacepc
+        .mock("POST", "/eapi/cloudsearch/pc")
+        .with_status(200)
+        .with_body(r#"{"code":404}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let not_found = fixture.host.request("netease", "search", json!({"query": "song"})).await;
+    assert_eq!(not_found.unwrap_err().code, "not_found");
+    // Unsupported audio container is refused, not served.
+    let bad_type = fixture
+        .interfacepc
+        .mock("POST", "/eapi/song/enhance/player/url")
+        .with_status(200)
+        .with_body(r#"{"code":200,"data":[{"id":5,"url":"https://m7.music.126.net/f","type":"exe"}]}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let refused = fixture
+        .host
+        .request("netease", "media.resolve", json!({"track_id": "5", "purpose": "preview"}))
+        .await;
+    assert_eq!(refused.unwrap_err().code, "internal");
+    // Trial-only track is a refusal payload, never a media URL.
+    let trial = fixture
+        .interfacepc
+        .mock("POST", "/eapi/song/enhance/player/url")
+        .with_status(200)
+        .with_body(r#"{"code":200,"data":[{"id":5,"freeTrialInfo":{},"url":"https://m7.music.126.net/f.mp3","type":"mp3"}]}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let clip = fixture
+        .call("media.resolve", json!({"track_id": "5", "purpose": "preview"}))
+        .await;
+    assert_eq!(clip["kind"], "refusal");
+    assert_eq!(clip["refusal"]["reason"], "trial_clip");
+    for mock in [missing, bad_type, trial, track_detail] {
+        mock.assert_async().await;
+    }
 }
