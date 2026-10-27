@@ -106,24 +106,27 @@ function plainText(value) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
+// Minimal HTTPS URL check without the URL global (not in the host sandbox).
+// Returns { origin, href } or null. Only exact https://host[:port][/path...]
+// shapes the provider actually emits; anything else is rejected.
 function httpsUrl(value) {
   const text = plainText(value);
   if (!text) return null;
-  let url;
-  try {
-    url = new URL(text.startsWith("http://") ? `https://${text.slice(7)}` : text);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" || url.username || url.password) return null;
-  return url;
+  const upgraded = text.startsWith("http://") ? `https://${text.slice(7)}` : text;
+  const match = /^https:\/\/([A-Za-z0-9.-]+(?::\d+)?)(\/[^?#]*)?(\?[^#]*)?(#.*)?$/.exec(upgraded);
+  if (!match) return null;
+  const [, authority, path = "/", query = "", fragment = ""] = match;
+  if (authority.includes("@")) return null;
+  const host = authority.split(":")[0];
+  if (!host || !host.includes(".")) return null;
+  if (/[\s<>\"\\^`{|}]/.test(upgraded)) return null;
+  void fragment;
+  return { origin: `https://${authority}`, href: `https://${authority}${path}${query}` };
 }
 function artworkResource(value, size, allowedOrigins) {
   const url = httpsUrl(value);
   if (!url || !allowedOrigins.includes(url.origin)) return null;
-  url.search = `?param=${size}y${size}`;
-  url.hash = "";
-  return { url: url.href, headers: {}, expires_at: null };
+  return { url: `${url.href.split("?")[0]}?param=${size}y${size}`, headers: {}, expires_at: null };
 }
 
 function refusal(reason, message = REFUSAL_MESSAGES[reason]) {

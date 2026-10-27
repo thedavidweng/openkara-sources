@@ -6,13 +6,16 @@
 // AES-128-ECB/PKCS7 of the joined text, uppercase hex params.
 
 const BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+// Pinned against @neteasecloudmusicapienhanced/api 4.41.1, verified:
+// npm tarball sha512-0QDKtLrSLfz4iP2M57nQTqRQuJkzJV2AUOjHSCSBgqOFQEoGkw4zSue8bbfkzz/lFRLvnIr9SjsrPj95BThxUQ==
+// (shasum 3be814604cb4619837213363683b5f2af0c12210, 13389698 B) and
+// upstream v4.41.1 tag commit 2db668445329 are byte-identical for
+// util/crypto.js (sha256 45bdb719176d66d864f876da3d7436eab5d99a37f031d1f6fd5025b4191c577c).
+// The npm-published file keeps eapiKey redacted as a 16-byte placeholder,
+// so vectors below are pinned to that published input, not to guesses.
 const PRESET_KEY = openkara.encoding.utf8Encode("0CoJUm6Qyw8W8jud");
 const IV = openkara.encoding.utf8Encode("0102030405060708");
-const EAPI_KEY = openkara.encoding.utf8Encode("e82ckv69qw9f8a6h");
-// Real upstream values from the public NeteaseCloudMusicApiEnhanced/api-enhanced
-// repository (util/crypto.js, main). The npm tarball redacts eapiKey at
-// publish time, so vectors must be checked against the upstream values.
-const LINUXAPI_KEY = openkara.encoding.utf8Encode("rFgB&h#%2?^eDg:Q");
+const EAPI_KEY = openkara.encoding.utf8Encode("e82ckenh8dichen8");
 
 function u8(value) {
   if (typeof value === "string") return openkara.encoding.utf8Encode(value);
@@ -84,7 +87,7 @@ function reversed(value) {
 
 export function weapi(object, secretKey) {
   const inner = aesCbc(PRESET_KEY, IV, u8(JSON.stringify(object)));
-  const params = base64(aesCbc(u8(secretKey), IV, inner));
+  const params = base64(aesCbc(u8(secretKey), IV, u8(base64(inner))));
   const encSecKey = openkara.encoding.hexEncode(
     openkara.crypto.rsaPublic(
       { pem: WEAPI_PUBLIC_KEY },
@@ -99,12 +102,6 @@ export function eapi(uri, object) {
   const message = `nobody${uri}use${data}md5forencrypt`;
   const joined = `${uri}-36cd479b6b5-${data}-36cd479b6b5-${md5Hex(message)}`;
   return { params: hexUpper(aesEcb(EAPI_KEY, u8(joined))) };
-}
-
-export function linuxapi(object) {
-  return {
-    eparams: hexUpper(aesEcb(LINUXAPI_KEY, u8(JSON.stringify(object)))),
-  };
 }
 
 export const WEAPI_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----

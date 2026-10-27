@@ -43,8 +43,7 @@ function toCookieObject(cookie) {
 
 // request.js processCookieObject, trimmed to the eapi/weapi paths: keeps the
 // remember-me defaults and the MUSIC_A anonymous fallback; os/device/channel
-// defaults only matter to xeapi/neapi signatures, never to the weapi/eapi
-// query bodies the seven operations send, so they stay unset here.
+// defaults also affect eapi headers and still need comparison with upstream.
 function processCookie(cookie) {
   const out = {
     ...cookie,
@@ -68,8 +67,13 @@ function toBoolean(value) {
   return !!value;
 }
 
-// Builds { url, headers, body } exactly as request.js does for the given
-// crypto branch, with csrf_token / e_r / header fields included.
+// Builds { url, headers, body } with csrf_token / e_r / header fields.
+function formEncode(fields) {
+  return Object.entries(fields)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
+}
+
 function buildRequest(crypto, uri, data, options) {
   const cookie = processCookie(toCookieObject(options.cookie));
   const csrfToken = cookie.__csrf || "";
@@ -89,7 +93,7 @@ function buildRequest(crypto, uri, data, options) {
     return {
       url: `${DOMAIN}/weapi/${uri.slice(5)}`,
       headers: { ...headers, Cookie: encodeCookie(cookie) },
-      body: new URLSearchParams(encrypted).toString(),
+      body: formEncode(encrypted),
     };
   }
 
@@ -117,7 +121,7 @@ function buildRequest(crypto, uri, data, options) {
   return {
     url: `${EAPI_DOMAIN}/eapi/${uri.slice(5)}`,
     headers,
-    body: new URLSearchParams(encrypted).toString(),
+    body: formEncode(encrypted),
   };
 }
 
@@ -178,11 +182,10 @@ export async function call(operation, query) {
     method: "POST",
     headers: { ...built.headers, "Content-Type": "application/x-www-form-urlencoded" },
     body: built.body,
-    timeoutMs: query.timeout && query.timeout > 0 ? query.timeout : 25000,
   });
   let body;
   try {
-    body = JSON.parse(response.bodyText);
+    body = JSON.parse(response.body);
   } catch {
     throw Object.assign(new Error("NetEase returned an unreadable response"), { code: "internal" });
   }
