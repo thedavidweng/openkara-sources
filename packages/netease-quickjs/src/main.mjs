@@ -224,6 +224,7 @@ function createState() {
     session: { state: "signed_out", account: null },
     uid: null,
     epoch: 0,
+    cancelled: false,
     cursors: new Map(),
     challenges: new Map(),
     trackCache: new Map(),
@@ -233,12 +234,17 @@ let state = createState();
 
 function resetSession(status = "signed_out") {
   state.epoch += 1;
+  state.cancelled = false;
   state.cookie = null;
   state.uid = null;
   state.session = { state: status, account: null };
   state.cursors.clear();
   state.challenges.clear();
   state.trackCache.clear();
+}
+
+function isCancelled() {
+  return state.cancelled === true;
 }
 
 async function upstream(operation, query, credentials = state.cookie) {
@@ -280,6 +286,16 @@ function parseCredentials(value) {
   const csrf = value.__csrf;
   if (!COOKIE_VALUE.test(MUSIC_U ?? "") || !COOKIE_VALUE.test(csrf ?? "")) return null;
   return { MUSIC_U, __csrf: csrf };
+}
+
+// Never throws: cancel is advisory only. The host rejects the timed-out call
+// with "cancelled", keeps the isolate alive, and takes the source down on
+// auth.sign_out, so resetSession always runs with an epoch bump. A stale
+// upstream success therefore sees a moved epoch or the cancelled flag and
+// returns without committing state; the next fresh attempt starts clean.
+function useCancellation() {
+  state.cancelled = false;
+  return isCancelled;
 }
 
 function issueCursor(method, key, cursorState) {
@@ -366,7 +382,10 @@ const methods = {
       fail("session_expired", "Saved NetEase sign-in is incomplete. Sign in again.");
     }
     try {
+      const started = state.epoch;
+      const wasCancelled = useCancellation();
       const body = await upstream("user_account", {}, credentials);
+      if (wasCancelled() || started !== state.epoch) return state.session;
       const id = body?.account?.id;
       if (!Number.isSafeInteger(id) || id <= 0)
         fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
@@ -415,7 +434,10 @@ const methods = {
         "authentication_required",
         "NetEase sign-in did not provide a complete session. Try signing in again.",
       );
+    const started = state.epoch;
+    const wasCancelled = useCancellation();
     const body = await upstream("user_account", {}, credentials);
+    if (wasCancelled() || started !== state.epoch) return state.session;
     const id = body?.account?.id;
     if (!Number.isSafeInteger(id) || id <= 0)
       fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");

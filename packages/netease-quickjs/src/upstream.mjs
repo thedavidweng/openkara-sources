@@ -11,11 +11,14 @@ import { weapi, eapi, randomKey16 } from "./crypto.mjs";
 const DOMAIN = "https://music.163.com";
 const EAPI_DOMAIN = "https://interfacepc.music.163.com";
 
-// UA strings from util/request.js userAgentMap for the paths we use.
+// Weapi User-Agent follows request.js: cookie.os === osx takes the macOS
+// Chrome row, everything else the weapi pc row. Matches chooseUserAgent
+// without inventing a UA: both strings are verbatim from userAgentMap.
+const UA_WEAPI_OSX =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0";
 const UA_WEAPI_PC =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const UA_API_IPHONE =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1";
+const UA_API_IPHONE = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)";
 
 function encodeCookie(cookie) {
   const parts = [];
@@ -41,15 +44,32 @@ function toCookieObject(cookie) {
   return out;
 }
 
-// request.js processCookieObject, trimmed to the eapi/weapi paths: keeps the
-// remember-me defaults and the MUSIC_A anonymous fallback; os/device/channel
-// defaults also affect eapi headers and still need comparison with upstream.
+// request.js processCookieObject, trimmed to the eapi/weapi paths at the 4.41.1
+// defaults (osMap pc row, options-only overrides, no process/env/globals).
+// deviceId stays empty when the session carries none: request.js falls back
+// to a process-global device, which this sandbox cannot invent; the first
+// real login response provides durable cookie values. Random values use host
+// crypto.
+// 4.41.1 osMap pc row: the exact wire defaults when the session carries no
+// device fields (verified against util/request.js).
+const OS_DEFAULTS = {
+  os: "pc",
+  appver: "3.1.17.204416",
+  osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
+  channel: "netease",
+};
+
 function processCookie(cookie) {
   const out = {
     ...cookie,
     __remember_me: "true",
     _ntes_nuid: cookie._ntes_nuid || randomHex(32),
     _ntes_nnid: cookie._ntes_nnid || `${randomHex(32)},${Date.now()}`,
+    osver: cookie.osver || OS_DEFAULTS.osver,
+    deviceId: cookie.deviceId || "",
+    os: cookie.os || OS_DEFAULTS.os,
+    channel: cookie.channel || OS_DEFAULTS.channel,
+    appver: cookie.appver || OS_DEFAULTS.appver,
   };
   if (!out.MUSIC_U) out.MUSIC_A = out.MUSIC_A || "";
   return out;
@@ -87,7 +107,7 @@ function buildRequest(crypto, uri, data, options) {
 
   if (crypto === "weapi") {
     headers.Referer = DOMAIN;
-    headers["User-Agent"] = options.ua || UA_WEAPI_PC;
+    headers["User-Agent"] = options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_WEAPI_PC);
     data.csrf_token = csrfToken;
     const encrypted = weapi(data, randomKey16());
     return {
@@ -97,7 +117,12 @@ function buildRequest(crypto, uri, data, options) {
     };
   }
 
-  // eapi (default when APP_CONF.encrypt is true, as in the frozen 4.41.1 config).
+  // eapi (default when APP_CONF.encrypt is true, as in the frozen 4.41.1
+  // config). Header Cookie carries exactly createHeaderCookie(header)
+  // fields: option.headers override wins, no Referer on this branch, and
+  // requestId/requestId use host clock. NMTID is omitted when the session
+  // has none: it is only issued by a real server response, which this
+  // provider cannot invent.
   const header = {
     osver: cookie.osver,
     deviceId: cookie.deviceId,
@@ -116,7 +141,8 @@ function buildRequest(crypto, uri, data, options) {
   if (cookie.NMTID) header.NMTID = cookie.NMTID;
   data.header = header;
   headers.Cookie = encodeCookie(header);
-  headers["User-Agent"] = options.ua || UA_API_IPHONE;
+  headers["User-Agent"] =
+    options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_API_IPHONE);
   const encrypted = eapi(uri, data);
   return {
     url: `${EAPI_DOMAIN}/eapi/${uri.slice(5)}`,
