@@ -1,0 +1,58 @@
+{
+  "manifest_version": 1,
+  "package_id": "org.openkara.netease-quickjs",
+  "publisher": "org.openkara",
+  "source_id": "netease",
+  "version": "2.0.0",
+  "minimum_host_version": "0.19.0",
+  "protocol": { "majors": [2], "minor": 0 },
+  "runtime": { "kind": "openkara-js", "major": 1 },
+  "entry": "src/main.mjs",
+  "name": "NetEase Cloud Music",
+  "description": "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
+  "license": "AGPL-3.0-only",
+  "capabilities": [
+    "search",
+    "liked_tracks",
+    "playlists",
+    "playlist_tracks",
+    "track_details",
+    "preview",
+    "import"
+  ],
+  "authentication": {
+    "flow": "web",
+    "sign_in_url": "https://music.163.com/#/login",
+    "navigation_origins": ["https://music.163.com"],
+    "cookie_names": ["MUSIC_U", "__csrf"]
+  },
+  "requires_authentication": [
+    "search",
+    "liked_tracks",
+    "playlists",
+    "playlist.tracks",
+    "tracks.get",
+    "media.resolve"
+  ],
+  "resource_origins": [
+    "https://p1.music.126.net",
+    "https://p2.music.126.net",
+    "https://p3.music.126.net",
+    "https://p4.music.126.net",
+    "https://music.163.com",
+    "https://interfacepc.music.163.com"
+  ],
+  "media_origins": [
+    "https://m7.music.126.net",
+    "https://m701.music.126.net",
+    "https://m702.music.126.net",
+    "https://m703.music.126.net",
+    "https://m704.music.126.net",
+    "https://m8.music.126.net",
+    "https://m801.music.126.net",
+    "https://m802.music.126.net",
+    "https://m803.music.126.net",
+    "https://m804.music.126.net",
+    "https://m10.music.126.net"
+  ]
+}
