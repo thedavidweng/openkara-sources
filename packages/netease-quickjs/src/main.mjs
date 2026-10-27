@@ -108,20 +108,27 @@ function plainText(value) {
 }
 // Minimal HTTPS URL check without the URL global (not in the host sandbox).
 // Returns { origin, href } or null. Only exact https://host[:port][/path...]
-// shapes the provider actually emits; anything else is rejected.
+// shapes the provider actually emits; anything else is rejected. Host is
+// DNS-normalized to lowercase and the HTTPS default port 443 is dropped so
+// the manifest allowlist compares canonical origins; path/query case and
+// percent-encoding pass through untouched. http:// upgrades to https:// per
+// the provider contract.
 function httpsUrl(value) {
   const text = plainText(value);
   if (!text) return null;
   const upgraded = text.startsWith("http://") ? `https://${text.slice(7)}` : text;
   const match = /^https:\/\/([A-Za-z0-9.-]+(?::\d+)?)(\/[^?#]*)?(\?[^#]*)?(#.*)?$/.exec(upgraded);
   if (!match) return null;
-  const [, authority, path = "/", query = "", fragment = ""] = match;
-  if (authority.includes("@")) return null;
-  const host = authority.split(":")[0];
-  if (!host || !host.includes(".")) return null;
+  const [, rawAuthority, path = "/", query = "", fragment = ""] = match;
+  if (rawAuthority.includes("@")) return null;
+  const colon = rawAuthority.indexOf(":");
+  const host = (colon < 0 ? rawAuthority : rawAuthority.slice(0, colon)).toLowerCase();
+  const port = colon < 0 ? "" : rawAuthority.slice(colon + 1);
+  if (!host || !host.includes(".") || /[^a-z0-9.-]/.test(host)) return null;
+  if (port !== "" && port !== "443") return null;
   if (/[\s<>\"\\^`{|}]/.test(upgraded)) return null;
   void fragment;
-  return { origin: `https://${authority}`, href: `https://${authority}${path}${query}` };
+  return { origin: `https://${host}`, href: `https://${host}${path}${query}` };
 }
 function artworkResource(value, size, allowedOrigins) {
   const url = httpsUrl(value);
