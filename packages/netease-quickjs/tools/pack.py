@@ -6,6 +6,7 @@ Layout (package/ prefix inside the tar):
   package/manifest.json  package/dist/entry.mjs  package/src/*.mjs
   package/LICENSE  package/NOTICE  package/SOURCES.md
   package/package.json  package/package-lock.json  package/README.md
+  package/tools/*  package/test/weapi-vector.mjs  package/LICENSES/*
 
 Determinism: fixed member order, uid/gid 0, modes (0o644 files, 0o755 dirs),
 mtime 0, gzip mtime 0, sort check on inputs. Only the standard library.
@@ -34,6 +35,7 @@ FILES = [
     "README.md",
     "tools/bundle.mjs",
     "tools/pack.py",
+    "test/weapi-vector.mjs",
     "LICENSES/netease-api-MIT.txt",
 ]
 
