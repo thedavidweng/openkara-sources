@@ -10,8 +10,8 @@ devDependency esbuild@0.28.1 (see package.json/package-lock.json).
 Wire ported from @neteasecloudmusicapienhanced/api 4.41.1 (see SOURCES.md):
 request construction follows `module/*.js`, `util/createOption.js` and the
 weapi/eapi branches of `util/request.js`; crypto follows `util/crypto.js`.
-The upstream package's own license and notices are recorded in SOURCES.md;
-no upstream code is vendored in this package.
+The adapter derives from the upstream implementation; the fixed upstream
+MIT license and copyright notice are included in LICENSES/netease-api-MIT.txt.
 
 Provider logic (search, liked tracks, playlists, details, rights mapping,
 cursors, session) ported from the OpenKara NetEase Node source in this

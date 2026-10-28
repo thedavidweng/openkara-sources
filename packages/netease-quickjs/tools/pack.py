@@ -32,6 +32,9 @@ FILES = [
     "package.json",
     "package-lock.json",
     "README.md",
+    "tools/bundle.mjs",
+    "tools/pack.py",
+    "LICENSES/netease-api-MIT.txt",
 ]
 
 
