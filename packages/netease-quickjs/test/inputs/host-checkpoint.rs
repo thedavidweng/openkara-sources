@@ -12,18 +12,22 @@ use std::time::Duration;
 const MUSIC: &str = "https://music.163.com";
 const INTERFACEPC: &str = "https://interfacepc.music.163.com";
 
-const BUNDLE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../pkg-real/package/dist/entry.mjs"));
-
 fn producer_manifest() -> SourceManifest {
-    // The real package manifest from the final tarball (entry manifest
-    // identity must equal the installed files; no test substitute).
-    let mut manifest: SourceManifest =
-        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../pkg-real/package/manifest.json"))).unwrap();
-    manifest.source_id = "netease".into();
-    manifest.package_id = "org.openkara.netease-quickjs".into();
-    manifest.publisher = "org.openkara".into();
-    manifest.version = "2.0.0".into();
-    manifest
+    serde_json::from_slice(&std::fs::read(std::env::var("PRODUCER_MANIFEST").unwrap()).unwrap()).unwrap()
+}
+
+async fn publish_exact(registry: &mut RegistryFixture, manifest: &SourceManifest) {
+    use base64::Engine;
+    use sha2::{Digest, Sha512};
+    let bytes = std::fs::read(std::env::var("PRODUCER_TAR").unwrap()).unwrap();
+    let integrity = format!("sha512-{}", base64::engine::general_purpose::STANDARD.encode(Sha512::digest(&bytes)));
+    let url = format!("{}/source.tgz", registry.server.url());
+    let document = json!({"format_version":1,"registry_id":"org.openkara","display_name":"Fixture", "homepage":"https://registry.openkara.test/", "packages":[{
+        "package_id":manifest.package_id,"source_id":manifest.source_id,"name":manifest.name,"description":manifest.description,"license":manifest.license,
+        "versions":[{"version":manifest.version,"protocol_majors":manifest.protocol.majors,"minimum_host_version":manifest.minimum_host_version,"size":bytes.len(),"integrity":integrity,"urls":[url],"resource_origins":manifest.resource_origins,"media_origins":manifest.media_origins,"capabilities":manifest.capabilities}]
+    }]});
+    registry.server.mock("GET", "/source.tgz").with_body(bytes).create_async().await;
+    registry.server.mock("GET", "/registry.json").with_body(serde_json::to_vec(&document).unwrap()).create_async().await;
 }
 
 struct ProducerFixture {
@@ -39,7 +43,7 @@ impl ProducerFixture {
         let root = tempfile::tempdir().unwrap();
         let mut registry = RegistryFixture::new("org.openkara").await;
         let manifest = producer_manifest();
-        registry.publish_sources(&[(manifest, BUNDLE.into())]).await;
+        publish_exact(&mut registry, &manifest).await;
         let music = Server::new_async().await;
         let interfacepc = Server::new_async().await;
         let mut config = HostConfig::fixture(root.path().to_path_buf(), "0.19.0".into());
@@ -331,4 +335,14 @@ async fn producer_failure_and_privacy_paths_stay_safe() {
     for mock in [missing, bad_type, trial, track_detail] {
         mock.assert_async().await;
     }
+}
+
+#[tokio::test]
+async fn producer_auth_complete_synthetic() {
+    let mut fixture = ProducerFixture::new().await;
+    let account = mock_account(&mut fixture.music, 1).await;
+    let start = fixture.call("auth.start", json!({})).await;
+    let completed = fixture.call("auth.complete", json!({"challenge":start["challenge"],"credentials":{"MUSIC_U":"synthetic-token","__csrf":"synthetic-csrf"}})).await;
+    assert_eq!(completed["session"]["state"], "signed_in");
+    account.assert_async().await;
 }
