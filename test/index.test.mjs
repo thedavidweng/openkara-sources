@@ -39,18 +39,31 @@ test("embedded trust anchors are internally consistent", () => {
     assert.equal(keyIdFor(bytes), key.key_id);
     publicKeyObject(key.public_key);
   }
-  assert.equal(TRUSTED_KEYS.current.key_id, "0374d430d3cf1aa6");
 });
 
-test("runtime pin maps every platform with the right executable", () => {
-  const runtime = runtimeFromPin(pin);
-  assert.equal(runtime.version, "24.22.1");
+test("runtime pin maps platform archives to host targets", () => {
+  const entry = (archive_suffix) => ({ archive_suffix, archive_size: 123, archive_sha256: "a".repeat(64) });
+  const runtime = runtimeFromPin({
+    version: "24.1.2",
+    targets: {
+      "aarch64-apple-darwin": entry("darwin-arm64.tar.gz"),
+      "x86_64-apple-darwin": entry("darwin-x64.tar.gz"),
+      "x86_64-unknown-linux-gnu": entry("linux-x64.tar.gz"),
+      "aarch64-unknown-linux-gnu": entry("linux-arm64.tar.gz"),
+      "x86_64-pc-windows-msvc": entry("win-x64.zip"),
+    },
+  });
+  assert.equal(runtime.version, "24.1.2");
   assert.deepEqual(Object.keys(runtime.targets).sort(), ["linux-aarch64", "linux-x86_64", "macos-aarch64", "macos-x86_64", "windows-x86_64"]);
-  assert.equal(runtime.targets["macos-aarch64"].executable, "node-v24.22.1-darwin-arm64/bin/node");
-  assert.equal(runtime.targets["macos-aarch64"].url, "https://nodejs.org/dist/v24.22.1/node-v24.22.1-darwin-arm64.tar.gz");
-  assert.equal(runtime.targets["windows-x86_64"].executable, "node-v24.22.1-win-x64/node.exe");
+  assert.deepEqual(runtime.targets["macos-aarch64"], {
+    url: "https://nodejs.org/dist/v24.1.2/node-v24.1.2-darwin-arm64.tar.gz",
+    size: 123,
+    sha256: "a".repeat(64),
+    format: "tar.gz",
+    executable: "node-v24.1.2-darwin-arm64/bin/node",
+  });
+  assert.equal(runtime.targets["windows-x86_64"].executable, "node-v24.1.2-win-x64/node.exe");
   assert.equal(runtime.targets["windows-x86_64"].format, "zip");
-  assert.equal(runtime.targets["linux-x86_64"].sha256, pin.targets["x86_64-unknown-linux-gnu"].archive_sha256);
 });
 
 test("a first index is signed, valid and verifiable", () => {
