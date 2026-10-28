@@ -56,8 +56,8 @@ DigestAlgorithm elements (CVE-2026-85393). The real archive test checks a valid
 signature and the malformed nested structure in the installed package. Replace the override
 with the fixed stable version when upstream publishes it.
 
-Node 24 is required (`node --test` suites run offline except the real-archive test, which runs
-`npm ci`; set `OPENKARA_SKIP_NETWORK_TESTS=1` to skip it).
+CI and local tests run on Node 26.12.1 (`node --test` suites run offline except the real-archive test, which runs
+`npm ci`; set `OPENKARA_SKIP_NETWORK_TESTS=1` to skip it). The packaged worker still runs on the Node 24 pin in `data/source-runtime.json` (`engines` `>=24 <25`, manifest `runtime.major` 24).
 
 ```
 npm test
