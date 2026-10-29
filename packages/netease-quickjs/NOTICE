@@ -1,0 +1,21 @@
+OpenKara NetEase QuickJS source (org.openkara.netease-quickjs)
+Copyright David Weng and contributors.
+
+This package is distributed under AGPL-3.0-only (see LICENSE). It is a
+Streaming Source plugin for OpenKara and runs on the embedded QuickJS
+(`openkara-js`) runtime: `dist/entry.mjs` is a single self-contained ES module
+built from `src/` (the AGPL corresponding source) with the pinned
+devDependency esbuild@0.28.1 (see package.json/package-lock.json).
+
+Wire ported from @neteasecloudmusicapienhanced/api 4.41.1 (see SOURCES.md):
+request construction follows `module/*.js`, `util/createOption.js` and the
+weapi/eapi branches of `util/request.js`; crypto follows `util/crypto.js`.
+The adapter derives from the upstream implementation; the fixed upstream
+MIT license and copyright notice are included in LICENSES/netease-api-MIT.txt.
+
+Provider logic (search, liked tracks, playlists, details, rights mapping,
+cursors, session) ported from the OpenKara NetEase Node source in this
+repository (`packages/netease`), which is likewise AGPL-3.0-only.
+
+Third-party build tooling (esbuild) is a development-only dependency and is
+not shipped in the source archive.

@@ -24,3 +24,5 @@ jobs:
         with:
           node-version: 24.22.1
       - run: npm test
+      - name: Verify registry format
+        run: node scripts/verify-registry.mjs

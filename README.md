@@ -5,7 +5,10 @@ plus the release pipeline that publishes them.
 
 ## Layout
 
-- `packages/netease/` - the NetEase Cloud Music source (manifest, worker, LICENSE, NOTICE).
+- `packages/netease/` - the NetEase Cloud Music source (manifest, worker, LICENSE, NOTICE) for Node runtime hosts (OpenKara 0.17/0.18).
+- `packages/netease-quickjs/` - protocol-2 port for the embedded QuickJS (`openkara-js`) engine in OpenKara 0.19+.
+- `registry.json` - the Source Registry (format_version 1) document for OpenKara 0.19+.
+- `scripts/verify-registry.mjs` - validates `registry.json` format and release archives.
 - `scripts/build-package.mjs` - stages a package, runs `npm ci --omit=dev --ignore-scripts`, writes a
   reproducible `.tar.gz` plus a `.meta.json` (size, sha256) and a third-party license inventory.
 - `scripts/build-index.mjs` - merges the new release into the previously published index and signs it.
@@ -16,7 +19,18 @@ plus the release pipeline that publishes them.
 - `data/revocations.json` - versions to list as revoked in the next index, per source id.
 - `test/` - `node --test` suites (worker over real stdio with the upstream API mocked, archive, index).
 
-## Trust model
+## Source Registry (OpenKara 0.19+)
+
+OpenKara 0.19+ hosts install protocol-2 packages from a Source Registry JSON document (format_version 1).
+The stable registry URL users add is:
+
+```
+https://raw.githubusercontent.com/thedavidweng/openkara-sources/main/registry.json
+```
+
+Adding this registry in OpenKara allows users to browse and install packages such as `org.openkara.netease-quickjs`.
+
+## Trust model (OpenKara 0.17/0.18)
 
 OpenKara downloads `source-index.json` from
 `https://github.com/thedavidweng/openkara-sources/releases/latest/download/source-index.json`.
