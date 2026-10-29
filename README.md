@@ -37,11 +37,9 @@ runtime is only installed if its size and sha256 match a signed index entry.
 
 ## Releasing
 
-1. Bump the version in `packages/netease/manifest.json` and `package.json` (or `packages/netease-quickjs/manifest.json` and `package.json`).
+1. Bump the version in `packages/netease/manifest.json` and `package.json`.
 2. Merge to `main` with CI green.
-3. Tag and push:
-   - Node: `git tag netease-v<version> && git push origin netease-v<version>`
-   - QuickJS: `git tag netease-quickjs-v<version> && git push origin netease-quickjs-v<version>`
+3. `git tag netease-v<version> && git push origin netease-v<version>`.
 
 The release workflow runs the tests, builds the archive, builds and signs the index, creates the
 GitHub Release with `openkara-source-netease-<version>.tar.gz` and `source-index.json`, and verifies

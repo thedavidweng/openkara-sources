@@ -116,9 +116,7 @@ export function validateManifest(manifest, source) {
   if (!isSemver(m.version)) problems.push("manifest version is not SemVer");
   if (!isSemver(m.minimum_host_version)) problems.push("minimum_host_version is not SemVer");
   if (!Array.isArray(m.protocol?.majors) || m.protocol.majors.length === 0) problems.push("protocol.majors is empty");
-  const runtimeKind = m.runtime?.kind;
-  if ((runtimeKind !== "node" && runtimeKind !== "openkara-js") || !Number.isInteger(m.runtime?.major))
-    problems.push("runtime must be node or openkara-js with a major");
+  if (m.runtime?.kind !== "node" || !Number.isInteger(m.runtime?.major)) problems.push("runtime must be node with a major");
   if (typeof m.entry !== "string" || !m.entry.endsWith(".mjs") || relativePathError(m.entry))
     problems.push("entry must be a safe relative .mjs path");
   if (!m.name || !m.license) problems.push("name and license are required");
@@ -158,9 +156,8 @@ export function validateIndexPayload(payload) {
   for (const source of payload.sources) {
     const where = `source ${source?.source_id}`;
     if (!SOURCE_ID.test(source?.source_id ?? "")) problems.push(`${where}: invalid source_id`);
-    const key = source?.package_id ? `${source.source_id}:${source.package_id}` : source?.source_id;
-    if (ids.has(key)) problems.push(`${where}: duplicate source`);
-    ids.add(key);
+    if (ids.has(source?.source_id)) problems.push(`${where}: duplicate source`);
+    ids.add(source?.source_id);
     for (const version of source?.revoked_versions ?? []) {
       if (!isSemver(version)) problems.push(`${where}: revoked version ${version} is not SemVer`);
     }
@@ -172,18 +169,14 @@ export function validateIndexPayload(payload) {
       versions.add(release?.manifest?.version);
       problems.push(...artifactProblems(`${label} archive`, release?.archive, false));
       const runtime = release?.runtime;
-      if (release?.manifest?.runtime?.kind === "node") {
-        if (!isSemver(runtime?.version)) problems.push(`${label}: runtime version is not SemVer`);
-        else if (Number(runtime.version.split(".")[0]) !== release?.manifest?.runtime?.major)
-          problems.push(`${label}: runtime major differs from the manifest`);
-        const targets = Object.entries(runtime?.targets ?? {});
-        if (targets.length === 0) problems.push(`${label}: runtime targets are empty`);
-        for (const [key, target] of targets) {
-          if (!TARGET_KEYS.includes(key)) problems.push(`${label}: unknown target ${key}`);
-          problems.push(...artifactProblems(`${label} runtime ${key}`, target, true));
-        }
-      } else if (runtime != null) {
-        problems.push(`${label}: openkara-js release must not declare a runtime pin`);
+      if (!isSemver(runtime?.version)) problems.push(`${label}: runtime version is not SemVer`);
+      else if (Number(runtime.version.split(".")[0]) !== release?.manifest?.runtime?.major)
+        problems.push(`${label}: runtime major differs from the manifest`);
+      const targets = Object.entries(runtime?.targets ?? {});
+      if (targets.length === 0) problems.push(`${label}: runtime targets are empty`);
+      for (const [key, target] of targets) {
+        if (!TARGET_KEYS.includes(key)) problems.push(`${label}: unknown target ${key}`);
+        problems.push(...artifactProblems(`${label} runtime ${key}`, target, true));
       }
     }
   }

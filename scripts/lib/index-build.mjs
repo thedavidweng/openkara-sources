@@ -30,27 +30,7 @@ export function runtimeFromPin(pin) {
   return { version: pin.version, targets };
 }
 
-export const TAG_PATTERNS = Object.freeze([
-  { prefix: "netease-quickjs-v", package: "netease-quickjs" },
-  { prefix: "netease-v", package: "netease" },
-]);
-
-export function parseReleaseTag(tag) {
-  if (typeof tag !== "string") return null;
-  for (const { prefix, package: pkg } of TAG_PATTERNS) {
-    if (tag.startsWith(prefix)) {
-      return { package: pkg, version: tag.slice(prefix.length) };
-    }
-  }
-  return null;
-}
-
-export const releaseTag = (manifest) => {
-  if (manifest?.package_id?.endsWith("-quickjs")) {
-    return `${manifest.source_id}-quickjs-v${manifest.version}`;
-  }
-  return `${manifest.source_id}-v${manifest.version}`;
-};
+export const releaseTag = (manifest) => `${manifest.source_id}-v${manifest.version}`;
 
 /**
  * Merges one new release into the previous payload (if any). Existing releases are
@@ -58,7 +38,7 @@ export const releaseTag = (manifest) => {
  */
 export function mergePayload({ previous, manifest, archive, runtime, repo, revocations = {} }) {
   const sources = structuredClone(previous?.sources ?? []);
-  let source = sources.find((s) => s.package_id === manifest.package_id);
+  let source = sources.find((s) => s.source_id === manifest.source_id);
   if (!source) {
     source = {
       source_id: manifest.source_id,
@@ -69,8 +49,8 @@ export function mergePayload({ previous, manifest, archive, runtime, repo, revoc
     };
     sources.push(source);
   }
-  if (source.source_id !== manifest.source_id || source.publisher !== manifest.publisher || source.package_id !== manifest.package_id)
-    throw new Error("source_id, publisher, or package_id changed for an existing source");
+  if (source.publisher !== manifest.publisher || source.package_id !== manifest.package_id)
+    throw new Error("publisher or package_id changed for an existing source");
 
   const release = {
     manifest,
@@ -80,23 +60,20 @@ export function mergePayload({ previous, manifest, archive, runtime, repo, revoc
       sha256: archive.sha256,
       format: archive.format,
     },
-    ...(manifest.runtime?.kind === "node" ? { runtime } : {}),
+    runtime,
   };
   const existing = source.releases.find((r) => r.manifest.version === manifest.version);
   if (existing) {
     if (existing.archive.sha256 !== release.archive.sha256)
       throw new Error(`version ${manifest.version} is already published with different contents`);
     if (!isDeepStrictEqual(existing.manifest, manifest)) throw new Error(`version ${manifest.version} manifest differs from the published one`);
-    if (manifest.runtime?.kind === "node") existing.runtime = runtime;
+    existing.runtime = runtime;
   } else {
     source.releases.push(release);
   }
   source.releases.sort((a, b) => a.manifest.version.localeCompare(b.manifest.version, "en", { numeric: true }));
   source.revoked_versions = [...new Set([...(source.revoked_versions ?? []), ...(revocations[source.source_id] ?? [])])].sort();
-  sources.sort((a, b) => {
-    if (a.source_id !== b.source_id) return a.source_id < b.source_id ? -1 : 1;
-    return a.package_id < b.package_id ? -1 : 1;
-  });
+  sources.sort((a, b) => (a.source_id < b.source_id ? -1 : 1));
 
   const generation = previous
     ? isDeepStrictEqual(previous.sources, sources)

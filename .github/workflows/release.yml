@@ -1,13 +1,9 @@
 name: Release
 
-# Cut a release by pushing a tag:
-#   Node:    git tag netease-v1.0.0 && git push origin netease-v1.0.0
-#   QuickJS: git tag netease-quickjs-v2.0.0 && git push origin netease-quickjs-v2.0.0
+# Cut a release by pushing a tag: git tag netease-v1.0.0 && git push origin netease-v1.0.0
 on:
   push:
-    tags:
-      - "netease-v[0-9]+.[0-9]+.[0-9]+*"
-      - "netease-quickjs-v[0-9]+.[0-9]+.[0-9]+*"
+    tags: ["netease-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions: {}
 
@@ -35,48 +31,18 @@ jobs:
 
       - name: Check the tag matches the package version
         run: |
-          case "$GITHUB_REF_NAME" in
-            netease-quickjs-v*)
-              pkg="netease-quickjs"
-              version="${GITHUB_REF_NAME#netease-quickjs-v}"
-              ;;
-            netease-v*)
-              pkg="netease"
-              version="${GITHUB_REF_NAME#netease-v}"
-              ;;
-            *)
-              echo "unrecognized release tag: $GITHUB_REF_NAME" >&2
-              exit 1
-              ;;
-          esac
-          manifest="$(node -p "require('./packages/' + '$pkg' + '/manifest.json').version")"
-          package="$(node -p "require('./packages/' + '$pkg' + '/package.json').version")"
+          version="${GITHUB_REF_NAME#netease-v}"
+          manifest="$(node -p "require('./packages/netease/manifest.json').version")"
+          package="$(node -p "require('./packages/netease/package.json').version")"
           if [ "$version" != "$manifest" ] || [ "$version" != "$package" ]; then
             echo "tag version $version, manifest $manifest, package.json $package must all match" >&2
             exit 1
           fi
-          echo "RELEASE_PACKAGE=$pkg" >> "$GITHUB_ENV"
-          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
 
       - run: npm test
 
-      - name: Test package
-        run: |
-          if [ "$RELEASE_PACKAGE" = "netease-quickjs" ]; then
-            npm --prefix packages/netease-quickjs ci
-            npm --prefix packages/netease-quickjs test
-          fi
-
       - name: Build the package archive
-        run: |
-          mkdir -p dist
-          if [ "$RELEASE_PACKAGE" = "netease-quickjs" ]; then
-            npm --prefix packages/netease-quickjs ci
-            npm --prefix packages/netease-quickjs run bundle
-            python3 packages/netease-quickjs/tools/pack.py --out ../../dist
-          else
-            node scripts/build-package.mjs --package "$RELEASE_PACKAGE" --out dist
-          fi
+        run: node scripts/build-package.mjs --package netease --out dist
 
       - name: Fetch the previously published index
         run: |
@@ -91,24 +57,18 @@ jobs:
         env:
           OPENKARA_SOURCE_SIGNING_CURRENT_PRIVATE_KEY: ${{ secrets.OPENKARA_SOURCE_SIGNING_CURRENT_PRIVATE_KEY }}
         run: |
-          node scripts/build-index.mjs --package "$RELEASE_PACKAGE" --archive "dist/openkara-source-netease-${RELEASE_VERSION}.tar.gz.meta.json" ${PREVIOUS_INDEX:+--previous "$PREVIOUS_INDEX"} --out dist/source-index.json --key-slot current
+          node scripts/build-index.mjs --package netease --archive "dist/openkara-source-netease-${GITHUB_REF_NAME#netease-v}.tar.gz.meta.json" ${PREVIOUS_INDEX:+--previous "$PREVIOUS_INDEX"} --out dist/source-index.json --key-slot current
           node scripts/verify-index.mjs dist/source-index.json
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          title="NetEase source ${RELEASE_VERSION}"
-          notes="NetEase Streaming Source package ${RELEASE_VERSION}. source-index.json carries every published release."
-          if [ "$RELEASE_PACKAGE" = "netease-quickjs" ]; then
-            title="NetEase QuickJS source ${RELEASE_VERSION}"
-            notes="NetEase QuickJS Streaming Source package ${RELEASE_VERSION}. source-index.json carries every published release."
-          fi
           gh release create "$GITHUB_REF_NAME" \
-            "dist/openkara-source-netease-${RELEASE_VERSION}.tar.gz" \
+            "dist/openkara-source-netease-${GITHUB_REF_NAME#netease-v}.tar.gz" \
             dist/source-index.json \
-            --title "$title" \
-            --notes "$notes" \
+            --title "NetEase source ${GITHUB_REF_NAME#netease-v}" \
+            --notes "NetEase Streaming Source package ${GITHUB_REF_NAME#netease-v}. source-index.json carries every published release." \
             --verify-tag --latest
 
       # The latest/download redirect can lag a freshly created release.

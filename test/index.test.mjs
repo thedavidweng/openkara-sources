@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSignedIndex, mergePayload, parseReleaseTag, releaseTag, runtimeFromPin } from "../scripts/lib/index-build.mjs";
+import { buildSignedIndex, mergePayload, releaseTag, runtimeFromPin } from "../scripts/lib/index-build.mjs";
 import { validateIndexPayload } from "../scripts/lib/host-rules.mjs";
 import { TRUSTED_KEYS, keyIdFor, publicKeyObject, rawPublicOf, signEnvelope, verifyEnvelope } from "../scripts/lib/trust.mjs";
 import { MANIFEST } from "./support/client.mjs";
@@ -172,86 +172,4 @@ test("the CLI refuses a key that is not the trusted one and never prints it", ()
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
-});
-
-test("tag patterns map to packages and versions", () => {
-  assert.deepEqual(parseReleaseTag("netease-v1.0.1"), { package: "netease", version: "1.0.1" });
-  assert.deepEqual(parseReleaseTag("netease-quickjs-v2.0.0"), { package: "netease-quickjs", version: "2.0.0" });
-  assert.equal(parseReleaseTag("other-v1.0.0"), null);
-});
-
-test("releaseTag distinguishes node and quickjs packages", () => {
-  assert.equal(releaseTag({ source_id: "netease", package_id: "org.openkara.netease", version: "1.0.1" }), "netease-v1.0.1");
-  assert.equal(releaseTag({ source_id: "netease", package_id: "org.openkara.netease-quickjs", version: "2.0.0" }), "netease-quickjs-v2.0.0");
-});
-
-test("an index can merge and hold both packages (protocol 1 netease and protocol 2 netease-quickjs)", () => {
-  const first = build().envelope;
-  const quickjsManifest = JSON.parse(readFileSync(join(root, "packages", "netease-quickjs", "manifest.json"), "utf8"));
-  const quickjsArchive = {
-    file: "openkara-source-netease-2.0.0.tar.gz",
-    format: "tar.gz",
-    size: 35971,
-    sha256: "9e64d5540dcc209ef6d8fb9aea45be5b90b26c3f562fbe42ca4661c1ed251c76",
-  };
-  const second = buildSignedIndex({
-    previousEnvelope: first,
-    manifest: quickjsManifest,
-    archive: quickjsArchive,
-    pin,
-    repo,
-    revocations: {},
-    privateKey,
-    slot: "current",
-    trusted,
-  });
-  assert.equal(second.payload.generation, 2);
-  assert.equal(second.payload.sources.length, 2);
-  const nodeSource = second.payload.sources.find((s) => s.package_id === "org.openkara.netease");
-  const quickjsSource = second.payload.sources.find((s) => s.package_id === "org.openkara.netease-quickjs");
-  assert.ok(nodeSource, "nodeSource must exist");
-  assert.ok(quickjsSource, "quickjsSource must exist");
-  assert.equal(nodeSource.source_id, "netease");
-  assert.equal(quickjsSource.source_id, "netease");
-  assert.deepEqual(nodeSource.releases.map((r) => r.manifest.version), ["1.0.0"]);
-  assert.deepEqual(quickjsSource.releases.map((r) => r.manifest.version), ["2.0.0"]);
-  const quickjsRelease = quickjsSource.releases[0];
-  assert.equal(quickjsRelease.runtime, undefined);
-  assert.equal(
-    quickjsRelease.archive.url,
-    `https://github.com/${repo}/releases/download/netease-quickjs-v2.0.0/openkara-source-netease-2.0.0.tar.gz`,
-  );
-  assert.deepEqual(validateIndexPayload(second.payload), []);
-  assert.deepEqual(verifyEnvelope(second.envelope, trusted), second.payload);
-
-  // Re-running the same QuickJS release keeps the generation; different bytes are refused
-  assert.equal(
-    buildSignedIndex({
-      previousEnvelope: second.envelope,
-      manifest: quickjsManifest,
-      archive: quickjsArchive,
-      pin,
-      repo,
-      revocations: {},
-      privateKey,
-      slot: "current",
-      trusted,
-    }).payload.generation,
-    2,
-  );
-  assert.throws(
-    () =>
-      buildSignedIndex({
-        previousEnvelope: second.envelope,
-        manifest: quickjsManifest,
-        archive: { ...quickjsArchive, sha256: "c".repeat(64) },
-        pin,
-        repo,
-        revocations: {},
-        privateKey,
-        slot: "current",
-        trusted,
-      }),
-    /already published with different contents/,
-  );
 });
