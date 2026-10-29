@@ -13,6 +13,6 @@ runtime. Single self-contained ES module, no Node or browser globals.
 - Provider logic (search, liked tracks, playlists, details, rights mapping,
   cursors, session) ported from `packages/netease/src/netease.mjs`.
 
-Not published. Local candidate under the lane authorization only.
+Release: bump version in `manifest.json` and `package.json`, then tag `netease-quickjs-v<version>`. The release workflow builds `dist/entry.mjs`, packs via `tools/pack.py`, signs the release into `source-index.json`, and publishes the GitHub release.
 
 Rebuild: `npm ci` (dev-only esbuild) then `npm run bundle`. Pack: `npm run pack` (see `tools/pack.py`). Inputs and licenses: `SOURCES.md`, `LICENSE`, `NOTICE`.
