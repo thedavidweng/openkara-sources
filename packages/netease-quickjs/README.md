@@ -13,6 +13,12 @@ runtime. Single self-contained ES module, no Node or browser globals.
 - Provider logic (search, liked tracks, playlists, details, rights mapping,
   cursors, session) ported from `packages/netease/src/netease.mjs`.
 
-Not published. Local candidate under the lane authorization only.
+## Distribution
+
+Distributed via the OpenKara Source Registry. Users add the stable registry URL in OpenKara:
+
+```
+https://raw.githubusercontent.com/thedavidweng/openkara-sources/main/registry.json
+```
 
 Rebuild: `npm ci` (dev-only esbuild) then `npm run bundle`. Pack: `npm run pack` (see `tools/pack.py`). Inputs and licenses: `SOURCES.md`, `LICENSE`, `NOTICE`.

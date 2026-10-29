@@ -1,0 +1,59 @@
+{
+  "format_version": 1,
+  "registry_id": "org.openkara.sources",
+  "display_name": "OpenKara Sources",
+  "homepage": "https://github.com/thedavidweng/openkara-sources",
+  "packages": [
+    {
+      "package_id": "org.openkara.netease-quickjs",
+      "source_id": "netease",
+      "name": "NetEase Cloud Music",
+      "description": "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
+      "license": "AGPL-3.0-only",
+      "versions": [
+        {
+          "version": "2.0.0",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.19.0",
+          "size": 36041,
+          "integrity": "sha512-GHKIgkjITTAl8XvMbZakx9SqaPWSdF8oGItxaR/0A+XBSkNipBc8oOeM8QXTFYSKxABnde3eA0dH9kagmVE2+A==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/netease-quickjs-v2.0.0/openkara-source-netease-2.0.0.tar.gz"
+          ],
+          "resource_origins": [
+            "https://p1.music.126.net",
+            "https://p2.music.126.net",
+            "https://p3.music.126.net",
+            "https://p4.music.126.net",
+            "https://music.163.com",
+            "https://interfacepc.music.163.com"
+          ],
+          "media_origins": [
+            "https://m7.music.126.net",
+            "https://m701.music.126.net",
+            "https://m702.music.126.net",
+            "https://m703.music.126.net",
+            "https://m704.music.126.net",
+            "https://m8.music.126.net",
+            "https://m801.music.126.net",
+            "https://m802.music.126.net",
+            "https://m803.music.126.net",
+            "https://m804.music.126.net",
+            "https://m10.music.126.net"
+          ],
+          "capabilities": [
+            "search",
+            "liked_tracks",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import"
+          ]
+        }
+      ]
+    }
+  ]
+}
