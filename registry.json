@@ -17,8 +17,8 @@
             2
           ],
           "minimum_host_version": "0.19.0",
-          "size": 36041,
-          "integrity": "sha512-GHKIgkjITTAl8XvMbZakx9SqaPWSdF8oGItxaR/0A+XBSkNipBc8oOeM8QXTFYSKxABnde3eA0dH9kagmVE2+A==",
+          "size": 36030,
+          "integrity": "sha512-AA0N+zx6quZyzXUErD8uMLfG0zqI0pUfVp7JSxZNU4MjLNhMTihjzAw2KHADMtmWnj3m7V6C6FwiS0xmezJTLw==",
           "urls": [
             "https://github.com/thedavidweng/openkara-sources/releases/download/netease-quickjs-v2.0.0/openkara-source-netease-2.0.0.tar.gz"
           ],

@@ -191,7 +191,7 @@ export function validateRegistry(registry, documentByteLength = 0) {
         problems.push(`${verPrefix}: protocol_majors must be non-empty unique unsigned integers`);
       }
 
-      if (typeof ver.size !== "number" || ver.size <= 0 || ver.size > MAX_PACKAGE_BYTES) {
+      if (!Number.isSafeInteger(ver.size) || ver.size <= 0 || ver.size > MAX_PACKAGE_BYTES) {
         problems.push(`${verPrefix}: size ${ver.size} must be between 1 and ${MAX_PACKAGE_BYTES} bytes`);
       }
 
@@ -277,18 +277,8 @@ export function verifyRegistryArchive({ archivePath, version, registry }) {
   const manifest = JSON.parse(manifestEntry.data.toString("utf8"));
 
   // Find corresponding package and version in registry
-  let targetPkg = null;
-  let targetVer = null;
-  for (const pkg of registry.packages || []) {
-    if (pkg.package_id === manifest.package_id || pkg.source_id === manifest.source_id) {
-      const ver = pkg.versions?.find((v) => v.version === version);
-      if (ver) {
-        targetPkg = pkg;
-        targetVer = ver;
-        break;
-      }
-    }
-  }
+  let targetPkg = (registry.packages || []).find((pkg) => pkg.package_id === manifest.package_id) ?? null;
+  let targetVer = targetPkg?.versions?.find((v) => v.version === version) ?? null;
 
   if (!targetPkg || !targetVer) {
     throw new Error(`registry entry for package "${manifest.package_id}" version "${version}" not found`);

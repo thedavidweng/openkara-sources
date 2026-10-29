@@ -45,12 +45,10 @@ function makeSyntheticArchive(manifest, entryFile = "dist/entry.mjs") {
 function ensureRealArchive() {
   const quickjsDir = join(root, "packages", "netease-quickjs");
   const archivePath = join(quickjsDir, "dist", "openkara-source-netease-2.0.0.tar.gz");
-  if (!existsSync(archivePath)) {
-    const ci = spawnSync("npm", ["ci"], { cwd: quickjsDir, stdio: "inherit" });
-    if (ci.status !== 0) throw new Error("npm ci in packages/netease-quickjs failed");
-    const pack = spawnSync("npm", ["run", "pack"], { cwd: quickjsDir, stdio: "inherit" });
-    if (pack.status !== 0) throw new Error("npm run pack in packages/netease-quickjs failed");
-  }
+  const ci = spawnSync("npm", ["ci"], { cwd: quickjsDir, stdio: "inherit" });
+  if (ci.status !== 0) throw new Error("npm ci in packages/netease-quickjs failed");
+  const pack = spawnSync("npm", ["run", "pack"], { cwd: quickjsDir, stdio: "inherit" });
+  if (pack.status !== 0) throw new Error("npm run pack in packages/netease-quickjs failed");
   return archivePath;
 }
 
@@ -66,6 +64,32 @@ test("committed registry.json passes the format check", () => {
 test("a valid registry passes format validation", () => {
   const doc = clone(committedRegistry);
   assert.deepEqual(validateRegistry(doc), []);
+});
+
+test("invalid size fails validation", () => {
+  // Fractional size (non-integer)
+  const docFloat = clone(committedRegistry);
+  docFloat.packages[0].versions[0].size = 36041.5;
+  assert.ok(
+    validateRegistry(docFloat).some((p) => p.includes("size")),
+    "fractional size must fail validation"
+  );
+
+  // Negative size
+  const docNeg = clone(committedRegistry);
+  docNeg.packages[0].versions[0].size = -1;
+  assert.ok(
+    validateRegistry(docNeg).some((p) => p.includes("size")),
+    "negative size must fail validation"
+  );
+
+  // Non-safe integer size
+  const docUnsafe = clone(committedRegistry);
+  docUnsafe.packages[0].versions[0].size = Number.MAX_SAFE_INTEGER + 10;
+  assert.ok(
+    validateRegistry(docUnsafe).some((p) => p.includes("size")),
+    "unsafe integer size must fail validation"
+  );
 });
 
 test("bad SRI fails validation", () => {
@@ -174,6 +198,38 @@ test("manifest mismatch fails archive verification", () => {
       () => verifyRegistryArchive({ archivePath, version: "2.0.0", registry: docSriMismatch }),
       /integrity/i
     );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("selects registry package by package_id only when multiple packages share source_id", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "verify-registry-test-"));
+  try {
+    const archivePath = join(tmp, "test-archive.tar.gz");
+    const manifest = JSON.parse(
+      readFileSync(join(root, "packages", "netease-quickjs", "manifest.json"), "utf8")
+    );
+    const archiveGz = makeSyntheticArchive(manifest);
+    writeFileSync(archivePath, archiveGz);
+
+    const multiPkgRegistry = clone(committedRegistry);
+    const otherPkg = clone(committedRegistry.packages[0]);
+    otherPkg.package_id = "org.openkara.netease-other";
+    multiPkgRegistry.packages.unshift(otherPkg);
+
+    const actualSri = "sha512-" + createHash("sha512").update(archiveGz).digest("base64");
+    multiPkgRegistry.packages[0].versions[0].size = archiveGz.length;
+    multiPkgRegistry.packages[0].versions[0].integrity = actualSri;
+    multiPkgRegistry.packages[1].versions[0].size = archiveGz.length;
+    multiPkgRegistry.packages[1].versions[0].integrity = actualSri;
+
+    const result = verifyRegistryArchive({
+      archivePath,
+      version: manifest.version,
+      registry: multiPkgRegistry,
+    });
+    assert.equal(result.package_id, manifest.package_id);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

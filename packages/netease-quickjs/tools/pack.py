@@ -71,23 +71,22 @@ def main():
     args = parser.parse_args()
     outdir = (ROOT / args.out).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
+    manifest = json.loads((ROOT / "manifest.json").read_text())
+    version = manifest["version"]
 
     # Clean slate: only our own dist outputs.
-    for old in sorted(outdir.glob("openkara-source-netease-2.0.0.tar.gz*")):
+    for old in sorted(outdir.glob(f"openkara-source-netease-{version}.tar.gz*")):
         old.unlink()
 
     bundle = ROOT / "dist" / "entry.mjs"
     if not bundle.is_file():
         raise SystemExit("dist/entry.mjs is missing; run: npm ci && npm run bundle")
-    manifest = json.loads((ROOT / "manifest.json").read_text())
     if manifest["entry"] != "dist/entry.mjs":
         raise SystemExit("manifest entry must be dist/entry.mjs")
-    if manifest["version"] != "2.0.0":
-        raise SystemExit("manifest version must be 2.0.0")
 
     tar_bytes = write_tar(build_members())
     gz = gzip.compress(tar_bytes, compresslevel=9, mtime=0)
-    archive = outdir / "openkara-source-netease-2.0.0.tar.gz"
+    archive = outdir / f"openkara-source-netease-{version}.tar.gz"
     archive.write_bytes(gz)
 
     sha256 = hashlib.sha256(gz).hexdigest()

@@ -122,12 +122,14 @@ async fn producer_describes_signed_out_and_restores_session() {
 
 #[tokio::test]
 async fn producer_rejects_bad_signatures_without_upstream() {
-    let fixture = ProducerFixture::new().await;
+    let mut fixture = ProducerFixture::new().await;
+    let probe = mock_account(&mut fixture.music, 0).await;
     let bad = fixture
         .host
-        .request("netease", "session.restore", json!({"credentials": {"MUSIC_U": "short", "__csrf": "x"}}))
+        .request("netease", "session.restore", json!({"credentials": {"MUSIC_U": "has space", "__csrf": ""}}))
         .await;
-    assert!(bad.is_err(), "malformed credentials must fail before any request");
+    assert_eq!(bad.unwrap_err().code, "session_expired", "malformed credentials must fail before any request");
+    probe.assert_async().await;
 }
 
 #[tokio::test]
