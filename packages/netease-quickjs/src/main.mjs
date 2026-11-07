@@ -2,19 +2,19 @@
 // NetEase Streaming Source, protocol major 2, openkara-js runtime 1.
 // Pure provider logic ported from packages/netease/src/netease.mjs plus the
 // protocol-2/host-API seams: describe carries the offer check and manifest
-// identity, storage is never used (credentials live in the host keychain and
-// the host cookie jar), timers/signals come from the call context the host
-// provides. No Node or browser globals: only `openkara`, setTimeout and
+// identity, storage holds only the non-secret device id (credentials live in
+// the host keychain and the host cookie jar), timers/signals come from the call
+// context the host provides. No Node or browser globals: only `openkara`, setTimeout and
 // clearTimeout exist beside this module.
 
-import { call as upstreamCall } from "./upstream.mjs";
+import { call as upstreamCall, chinaClientAddress } from "./upstream.mjs";
 
 // Manifest identity, mirrored here so describe answers without I/O. Keep in
 // sync with ../manifest.json.
 const MANIFEST = {
   package_id: "org.openkara.netease-quickjs",
   source_id: "netease",
-  version: "2.0.0",
+  version: "2.1.0",
   name: "NetEase Cloud Music",
   description: "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
   capabilities: [
@@ -26,12 +26,7 @@ const MANIFEST = {
     "preview",
     "import",
   ],
-  authentication: {
-    flow: "web",
-    sign_in_url: "https://music.163.com/#/login",
-    navigation_origins: ["https://music.163.com"],
-    cookie_names: ["MUSIC_U", "__csrf"],
-  },
+  authentication: { flow: "plugin", presentations: ["qr"] },
   requires_authentication: [
     "search",
     "liked_tracks",
@@ -48,6 +43,10 @@ const TRACK_CACHE_LIMIT = 20000;
 const CURSOR_LIMIT = 256;
 const CURSOR_TTL_MS = 30 * 60 * 1000;
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
+const QR_POLL_MS = 2000;
+const DEVICE_ID_KEY = "device-id";
+const PREVIEW_LEVEL = "exhigh";
+const IMPORT_LEVEL = "lossless";
 const AUDIO_EXTENSIONS = ["mp3", "flac", "wav", "ogg", "aac", "m4a"];
 const REFUSAL_MESSAGES = {
   no_play_rights: "NetEase does not grant play rights for this track on this account.",
@@ -254,10 +253,34 @@ function isCancelled() {
   return state.cancelled === true;
 }
 
-async function upstream(operation, query, credentials = state.cookie) {
+// 52-char uppercase hex id, made once and kept in the package key-value store.
+// Not a credential. Storage errors carry no protocol code and propagate.
+let deviceId = null;
+function persistentDeviceId() {
+  if (deviceId) return deviceId;
+  const stored = openkara.storage.get(DEVICE_ID_KEY);
+  if (typeof stored === "string" && /^[0-9A-F]{52}$/.test(stored)) {
+    deviceId = stored;
+  } else {
+    deviceId = openkara.encoding.hexEncode(openkara.crypto.randomBytes(26)).toUpperCase();
+    openkara.storage.set(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+
+// Returns { body, cookies }. `accept` lists the top-level codes that are
+// results rather than failures.
+async function upstreamFull(operation, query, credentials = state.cookie, accept = [200]) {
+  const device = persistentDeviceId();
   let response;
   try {
-    response = await upstreamCall(operation, { ...query, cookie: credentials, timeout: 25000 });
+    response = await upstreamCall(operation, {
+      ...query,
+      cookie: credentials,
+      deviceId: device,
+      realIP: chinaClientAddress,
+      timeout: 25000,
+    });
   } catch (error) {
     if (typeof error?.code === "string" && error.code !== "upstream" && error.code !== "internal")
       throw error;
@@ -266,8 +289,12 @@ async function upstream(operation, query, credentials = state.cookie) {
   }
   const code = response?.body?.code;
   if (code === undefined) fail("internal", "NetEase returned an unreadable response");
-  if (code !== 200) upstreamError(code);
-  return response.body;
+  if (!accept.includes(code)) upstreamError(code);
+  return { body: response.body, cookies: response.cookies };
+}
+
+async function upstream(operation, query, credentials = state.cookie) {
+  return (await upstreamFull(operation, query, credentials)).body;
 }
 
 function requireSession() {
@@ -378,6 +405,60 @@ function describe(params) {
   };
 }
 
+// Verifies the credentials with NetEase and commits the session. Returns null
+// when a sign-out or cancellation overtook the request.
+async function signIn(credentials) {
+  const started = state.epoch;
+  const wasCancelled = useCancellation();
+  const body = await upstream("user_account", {}, credentials);
+  if (wasCancelled() || started !== state.epoch) return null;
+  const id = body?.account?.id;
+  if (!Number.isSafeInteger(id) || id <= 0)
+    fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
+  const nickname = body?.profile?.nickname;
+  resetSession();
+  state.cookie = credentials;
+  state.uid = Number(id);
+  state.session = {
+    state: "signed_in",
+    account: {
+      id: String(id),
+      display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account",
+    },
+  };
+  return state.session;
+}
+
+// Preview plays at exhigh. Import asks the download endpoint for lossless and
+// falls back to the player endpoint at the same level when it gives no URL.
+async function songData(id, purpose) {
+  if (purpose === "import") {
+    let download = null;
+    try {
+      download = (await authed("song_download_url", { id, level: IMPORT_LEVEL })).data;
+    } catch (error) {
+      if (error?.code !== "internal") throw error;
+    }
+    if (isObject(download) && (httpsUrl(download.url) || download.freeTrialInfo)) return download;
+  }
+  const body = await authed("song_url", {
+    id,
+    level: purpose === "import" ? IMPORT_LEVEL : PREVIEW_LEVEL,
+  });
+  return array(body.data)[0] ?? {};
+}
+
+// A trial clip is announced by freeTrialInfo, or shows as a response duration
+// that disagrees with the track's by more than max(2 s, 3%).
+function isTrial(data, track) {
+  if (data.freeTrialInfo !== undefined && data.freeTrialInfo !== null) return true;
+  const response = safeCount(data.time);
+  const known = track.duration_ms;
+  return (
+    response > 0 && known > 0 && Math.abs(response - known) > Math.max(2000, known * 0.03)
+  );
+}
+
 const methods = {
   describe,
 
@@ -389,25 +470,7 @@ const methods = {
       fail("session_expired", "Saved NetEase sign-in is incomplete. Sign in again.");
     }
     try {
-      const started = state.epoch;
-      const wasCancelled = useCancellation();
-      const body = await upstream("user_account", {}, credentials);
-      if (wasCancelled() || started !== state.epoch) return state.session;
-      const id = body?.account?.id;
-      if (!Number.isSafeInteger(id) || id <= 0)
-        fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
-      const nickname = body?.profile?.nickname;
-      resetSession();
-      state.cookie = credentials;
-      state.uid = Number(id);
-      state.session = {
-        state: "signed_in",
-        account: {
-          id: String(id),
-          display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account",
-        },
-      };
-      return state.session;
+      return (await signIn(credentials)) ?? state.session;
     } catch (error) {
       if (error?.code === "session_expired") resetSession("expired");
       throw error;
@@ -416,54 +479,59 @@ const methods = {
 
   "auth.start": async () => {
     state.challenges.clear();
+    const started = state.epoch;
+    const wasCancelled = useCancellation();
+    const { unikey } = await upstream("qr_key", {}, null);
+    if (wasCancelled() || started !== state.epoch || !isText(unikey))
+      fail("internal", "NetEase did not provide a sign-in code");
     const challenge = openkara.encoding.base64Encode(openkara.crypto.randomBytes(18), {
       urlSafe: true,
       padding: false,
     });
     const expires = Date.now() + CHALLENGE_TTL_MS;
-    state.challenges.set(challenge, { state: "pending", expires });
+    state.challenges.set(challenge, { state: "pending", expires, unikey });
     return {
       challenge,
       expires_at: new Date(expires).toISOString(),
-      presentation: { kind: "web" },
+      poll_after_ms: QR_POLL_MS,
+      presentation: {
+        kind: "qr",
+        content: `https://music.163.com/login?codekey=${unikey}`,
+        text: "Scan the code with the NetEase Cloud Music app and confirm the sign-in.",
+      },
     };
   },
 
-  "auth.complete": async (params) => {
+  "auth.poll": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
     const entry = state.challenges.get(params.challenge);
     if (!entry) fail("challenge_expired");
     if (entry.state === "pending" && Date.now() >= entry.expires) entry.state = "expired";
-    if (entry.state !== "pending") fail("challenge_expired");
-    const credentials = parseCredentials(params?.credentials);
-    if (!credentials)
-      fail(
-        "authentication_required",
-        "NetEase sign-in did not provide a complete session. Try signing in again.",
-      );
+    if (entry.state !== "pending") return { state: entry.state };
     const started = state.epoch;
     const wasCancelled = useCancellation();
-    const body = await upstream("user_account", {}, credentials);
-    if (wasCancelled() || started !== state.epoch) return state.session;
-    const id = body?.account?.id;
-    if (!Number.isSafeInteger(id) || id <= 0)
-      fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
-    const nickname = body?.profile?.nickname;
-    resetSession();
-    state.cookie = credentials;
-    state.uid = Number(id);
-    state.session = {
-      state: "signed_in",
-      account: {
-        id: String(id),
-        display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account",
-      },
-    };
-    return {
-      session: state.session,
-      credentials: { MUSIC_U: credentials.MUSIC_U, __csrf: credentials.__csrf },
-    };
+    const { body, cookies } = await upstreamFull(
+      "qr_check",
+      { key: entry.unikey },
+      null,
+      [800, 801, 802, 803],
+    );
+    if (wasCancelled() || started !== state.epoch || entry.state !== "pending")
+      return { state: entry.state === "pending" ? "cancelled" : entry.state };
+    if (body.code === 800) {
+      entry.state = "expired";
+      return { state: "expired" };
+    }
+    if (body.code !== 803) return { state: "pending", poll_after_ms: QR_POLL_MS };
+    const credentials = parseCredentials({ MUSIC_U: cookies.MUSIC_U, __csrf: cookies.__csrf });
+    if (!credentials)
+      fail("authentication_required", "NetEase sign-in did not provide a complete session. Try again.");
+    const session = await signIn(credentials);
+    if (!session) return { state: "cancelled" };
+    return { state: "complete", session, credentials };
   },
+
+  "auth.complete": async () => fail("unsupported_operation"),
 
   "auth.cancel": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
@@ -616,10 +684,8 @@ const methods = {
     const track = found.get(params.track_id);
     if (!track) fail("not_found", "NetEase could not find that track.");
     if (track.refusal) return { kind: "refusal", refusal: track.refusal };
-    const body = await authed("song_url", { id: params.track_id, br: 320000 });
-    const data = array(body.data)[0] ?? {};
-    if (data.freeTrialInfo !== undefined && data.freeTrialInfo !== null)
-      return { kind: "refusal", refusal: refusal("trial_clip") };
+    const data = await songData(params.track_id, params.purpose);
+    if (isTrial(data, track)) return { kind: "refusal", refusal: refusal("trial_clip") };
     const url = httpsUrl(data.url);
     if (!url) return { kind: "refusal", refusal: refusal("no_media") };
     const extension = typeof data.type === "string" ? data.type.toLowerCase() : "";

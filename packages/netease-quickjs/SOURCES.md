@@ -12,6 +12,14 @@
 - Upstream tag `v4.41.1` commit `2db6684453297ee86dec0492842f2320b08182d9` serves byte-identical `util/crypto.js` (GitHub raw + contents API blob `cc882e25`); the registry metadata carries no `gitHead`, so the tarball bytes above are the verified input.
 - The fixed upstream archive declares MIT; its LICENSE (SHA-256 `e463bb821c363e6182f16ec1bf24405af3315b4adc72fc1402232fa98b9a0b12`) is included as `LICENSES/netease-api-MIT.txt`. The wire adapter derives from the referenced upstream implementation.
 
+## Behavioral reference (read-only, not vendored)
+
+- Kumone (LGPL-3.0, Swift, `https://github.com/missuo/kumone`): `Core/API/MusicClient.swift` (eapi header fields,
+  device id, cookie handling), `Core/API/MusicAPI.swift` (QR sign-in endpoints
+  and codes, token refresh, `song/enhance/player/url/v1` and
+  `download/url/v1` by level, download duration check). Behavior was ported;
+  no Kumone source code is copied or linked.
+
 ## In-repo sources
 
 - Provider logic: `../netease/src/*.mjs` (AGPL-3.0-only, same worktree).

@@ -6,10 +6,15 @@ runtime. Single self-contained ES module, no Node or browser globals.
 - Entry: `dist/entry.mjs` — single self-contained ES module built from `src/` via `npm run bundle` (pinned esbuild 0.28.1). `src/` remains the AGPL corresponding source; the multi-file tree is never installed as the runtime entry.
 - `src/crypto.mjs`: weapi double-AES-CBC + raw-RSA and eapi MD5 + AES-ECB wire,
   ported from `@neteasecloudmusicapienhanced/api` 4.41.1 `util/crypto.js`.
-- `src/upstream.mjs`: request construction ported from 4.41.1 `module/*.js`
-  (seven operations), `util/createOption.js`, and the weapi/eapi branches of
-  `util/request.js`, using only `openkara.request` / `openkara.crypto` /
+  Only eapi is used at runtime; weapi stays as a pinned test vector.
+- `src/upstream.mjs`: every operation goes through eapi on the interface host,
+  with the request shape of 4.41.1 `module/*.js` / `util/request.js` and the
+  header fields Kumone sends (persistent device id, China Client Address as
+  `X-Real-IP`). Uses only `openkara.request` / `openkara.crypto` /
   `openkara.encoding`.
+- Sign-in is a QR code scanned in the NetEase app (`auth.start` / `auth.poll`).
+- Song URLs are requested by quality level: `exhigh` for preview, `lossless`
+  (download endpoint, then player endpoint) for import.
 - Provider logic (search, liked tracks, playlists, details, rights mapping,
   cursors, session) ported from `packages/netease/src/netease.mjs`.
 

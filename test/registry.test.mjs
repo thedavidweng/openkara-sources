@@ -20,6 +20,9 @@ const scriptPath = join(root, "scripts", "verify-registry.mjs");
 const committedRegistryPath = join(root, "registry.json");
 const committedRegistryText = readFileSync(committedRegistryPath, "utf8");
 const committedRegistry = JSON.parse(committedRegistryText);
+const quickjsVersion = JSON.parse(
+  readFileSync(join(root, "packages", "netease-quickjs", "manifest.json"), "utf8"),
+).version;
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -44,7 +47,7 @@ function makeSyntheticArchive(manifest, entryFile = "dist/entry.mjs") {
 
 function ensureRealArchive() {
   const quickjsDir = join(root, "packages", "netease-quickjs");
-  const archivePath = join(quickjsDir, "dist", "openkara-source-netease-2.0.0.tar.gz");
+  const archivePath = join(quickjsDir, "dist", `openkara-source-netease-${quickjsVersion}.tar.gz`);
   const ci = spawnSync("npm", ["ci"], { cwd: quickjsDir, stdio: "inherit" });
   if (ci.status !== 0) throw new Error("npm ci in packages/netease-quickjs failed");
   const pack = spawnSync("npm", ["run", "pack"], { cwd: quickjsDir, stdio: "inherit" });
@@ -219,10 +222,11 @@ test("selects registry package by package_id only when multiple packages share s
     multiPkgRegistry.packages.unshift(otherPkg);
 
     const actualSri = "sha512-" + createHash("sha512").update(archiveGz).digest("base64");
-    multiPkgRegistry.packages[0].versions[0].size = archiveGz.length;
-    multiPkgRegistry.packages[0].versions[0].integrity = actualSri;
-    multiPkgRegistry.packages[1].versions[0].size = archiveGz.length;
-    multiPkgRegistry.packages[1].versions[0].integrity = actualSri;
+    for (const pkg of multiPkgRegistry.packages) {
+      const entry = pkg.versions.find((v) => v.version === manifest.version);
+      entry.size = archiveGz.length;
+      entry.integrity = actualSri;
+    }
 
     const result = verifyRegistryArchive({
       archivePath,
@@ -237,16 +241,17 @@ test("selects registry package by package_id only when multiple packages share s
 
 test("real built archive matches committed registry entry", () => {
   const archivePath = ensureRealArchive();
-  const result = verifyRegistryArchive({ archivePath, version: "2.0.0", registry: committedRegistry });
+  const entry = committedRegistry.packages[0].versions.find((v) => v.version === quickjsVersion);
+  const result = verifyRegistryArchive({ archivePath, version: quickjsVersion, registry: committedRegistry });
   assert.equal(result.package_id, "org.openkara.netease-quickjs");
-  assert.equal(result.version, "2.0.0");
-  assert.equal(result.size, committedRegistry.packages[0].versions[0].size);
-  assert.equal(result.integrity, committedRegistry.packages[0].versions[0].integrity);
+  assert.equal(result.version, quickjsVersion);
+  assert.equal(result.size, entry.size);
+  assert.equal(result.integrity, entry.integrity);
 
   // CLI invocation
   const cli = spawnSync(
     process.execPath,
-    [scriptPath, committedRegistryPath, "--archive", archivePath, "--version", "2.0.0"],
+    [scriptPath, committedRegistryPath, "--archive", archivePath, "--version", quickjsVersion],
     { encoding: "utf8" }
   );
   assert.equal(cli.status, 0, `CLI failed: ${cli.stderr}`);

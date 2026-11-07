@@ -13,6 +13,10 @@ weapi/eapi branches of `util/request.js`; crypto follows `util/crypto.js`.
 The adapter derives from the upstream implementation; the fixed upstream
 MIT license and copyright notice are included in LICENSES/netease-api-MIT.txt.
 
+Request headers, sign-in flow, song URL levels and trial detection follow the
+observable behavior of Kumone (LGPL-3.0, https://github.com/missuo/kumone; see SOURCES.md),
+used as a behavioral reference only. No Kumone code is included.
+
 Provider logic (search, liked tracks, playlists, details, rights mapping,
 cursors, session) ported from the OpenKara NetEase Node source in this
 repository (`packages/netease`), which is likewise AGPL-3.0-only.
