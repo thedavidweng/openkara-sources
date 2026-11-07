@@ -1,24 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// QuickJS upstream adapter: implements the exact request construction of the
-// seven NetEase API modules at @neteasecloudmusicapienhanced/api 4.41.1
-// (module/*.js + util/createOption.js + util/request.js crypto branches),
-// using only the frozen protocol-2 host API: openkara.request for transport,
-// openkara.crypto for weapi/eapi wire, no Node globals. Transport details
-// below mirror request.js for the weapi/eapi paths the seven operations use.
+// QuickJS upstream adapter: request construction of the NetEase API modules at
+// @neteasecloudmusicapienhanced/api 4.41.1 (module/*.js + util/createOption.js
+// + the eapi branch of util/request.js), aligned with the eapi request shape
+// Kumone uses (LGPL-3.0, behavioral reference only; see SOURCES.md). Every
+// operation goes through eapi on the interface host. Uses only the frozen
+// protocol-2 host API: openkara.request for transport, openkara.crypto for the
+// eapi wire, no Node globals.
 
-import { weapi, eapi, randomKey16 } from "./crypto.mjs";
+import { eapi } from "./crypto.mjs";
 
 const DOMAIN = "https://music.163.com";
 const EAPI_DOMAIN = "https://interfacepc.music.163.com";
-
-// Weapi User-Agent follows request.js: cookie.os === osx takes the macOS
-// Chrome row, everything else the weapi pc row. Matches chooseUserAgent
-// without inventing a UA: both strings are verbatim from userAgentMap.
-const UA_WEAPI_OSX =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0";
-const UA_WEAPI_PC =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const UA_API_IPHONE = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)";
+
+// 4.41.1 osMap pc row: the exact wire defaults of the eapi header.
+const OS_DEFAULTS = {
+  os: "pc",
+  appver: "3.1.17.204416",
+  osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
+  channel: "netease",
+};
+
+// ADR 0035: one China Client Address per engine run, sent as X-Real-IP on every
+// call. Same generator as the Node package's upstream (api util
+// generateRandomChineseIP) when its CIDR table is unavailable: the QuickJS
+// sandbox has no file access, so the 116.x prefix path applies.
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+export const chinaClientAddress = `116.${randomInt(25, 94)}.${randomInt(1, 255)}.${randomInt(1, 255)}`;
 
 function encodeCookie(cookie) {
   const parts = [];
@@ -30,133 +40,70 @@ function encodeCookie(cookie) {
   return parts.join("; ");
 }
 
-function toCookieObject(cookie) {
-  if (!cookie) return {};
-  if (typeof cookie === "object") return { ...cookie };
-  const out = {};
-  for (const part of String(cookie).split(";")) {
-    const index = part.indexOf("=");
-    if (index < 0) continue;
-    const key = part.slice(0, index).trim();
-    const value = part.slice(index + 1).trim();
-    if (key) out[key] = decodeURIComponent(value);
-  }
-  return out;
-}
-
-// request.js processCookieObject, trimmed to the eapi/weapi paths at the 4.41.1
-// defaults (osMap pc row, options-only overrides, no process/env/globals).
-// deviceId stays empty when the session carries none: request.js falls back
-// to a process-global device, which this sandbox cannot invent; the first
-// real login response provides durable cookie values. Random values use host
-// crypto.
-// 4.41.1 osMap pc row: the exact wire defaults when the session carries no
-// device fields (verified against util/request.js).
-const OS_DEFAULTS = {
-  os: "pc",
-  appver: "3.1.17.204416",
-  osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
-  channel: "netease",
-};
-
-function processCookie(cookie) {
-  const out = {
-    ...cookie,
-    __remember_me: "true",
-    _ntes_nuid: cookie._ntes_nuid || randomHex(32),
-    _ntes_nnid: cookie._ntes_nnid || `${randomHex(32)},${Date.now()}`,
-    osver: cookie.osver || OS_DEFAULTS.osver,
-    deviceId: cookie.deviceId || "",
-    os: cookie.os || OS_DEFAULTS.os,
-    channel: cookie.channel || OS_DEFAULTS.channel,
-    appver: cookie.appver || OS_DEFAULTS.appver,
-  };
-  if (!out.MUSIC_U) out.MUSIC_A = out.MUSIC_A || "";
-  return out;
-}
-
-function randomHex(length) {
-  const bytes = openkara.crypto.randomBytes(Math.ceil(length / 2));
-  let hex = openkara.encoding.hexEncode(bytes);
-  while (hex.length < length) hex += openkara.encoding.hexEncode(openkara.crypto.randomBytes(1));
-  return hex.slice(0, length);
-}
-
-function toBoolean(value) {
-  if (value === "true" || value === "false") return value === "true";
-  return !!value;
-}
-
-// Builds { url, headers, body } with csrf_token / e_r / header fields.
 function formEncode(fields) {
   return Object.entries(fields)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join("&");
 }
 
-function buildRequest(crypto, uri, data, options) {
-  const cookie = processCookie(toCookieObject(options.cookie));
-  const csrfToken = cookie.__csrf || "";
-  const headers = options.headers ? { ...options.headers } : {};
-  const realIP = options.realIP || "";
-  if (realIP) {
-    headers["X-Real-IP"] = realIP;
-    headers["X-Forwarded-For"] = realIP;
-  }
-  data.e_r = toBoolean(options.e_r !== undefined ? options.e_r : data.e_r !== undefined ? data.e_r : false);
+// NMTID is issued by the server; like Kumone, remember it for the eapi header
+// for the rest of the engine run. The host cookie jar carries it as a cookie.
+let nmtid = "";
 
-  if (crypto === "weapi") {
-    headers.Referer = DOMAIN;
-    headers["User-Agent"] = options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_WEAPI_PC);
-    data.csrf_token = csrfToken;
-    const encrypted = weapi(data, randomKey16());
-    return {
-      url: `${DOMAIN}/weapi/${uri.slice(5)}`,
-      headers: { ...headers, Cookie: encodeCookie(cookie) },
-      body: formEncode(encrypted),
-    };
+// Parses Set-Cookie values into name -> value, skipping empty or "" values.
+export function parseSetCookies(setCookies) {
+  const out = {};
+  for (const raw of Array.isArray(setCookies) ? setCookies : []) {
+    const pair = String(raw).split(";")[0];
+    const index = pair.indexOf("=");
+    if (index < 0) continue;
+    const name = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    if (name && value && value !== '""') out[name] = value;
   }
+  return out;
+}
 
-  // eapi (default when APP_CONF.encrypt is true, as in the frozen 4.41.1
-  // config). Header Cookie carries exactly createHeaderCookie(header)
-  // fields: option.headers override wins, no Referer on this branch, and
-  // requestId/requestId use host clock. NMTID is omitted when the session
-  // has none: it is only issued by a real server response, which this
-  // provider cannot invent.
+// Kumone MusicClient.eapi header fields, with `e_r: false`.
+function buildRequest(uri, data, options) {
+  const cookie = options.cookie || {};
+  const headers = {};
+  if (options.realIP) {
+    headers["X-Real-IP"] = options.realIP;
+    headers["X-Forwarded-For"] = options.realIP;
+  }
+  const now = Date.now();
   const header = {
-    osver: cookie.osver,
-    deviceId: cookie.deviceId,
-    os: cookie.os,
-    appver: cookie.appver,
-    versioncode: cookie.versioncode || "140",
-    mobilename: cookie.mobilename || "",
-    buildver: cookie.buildver || String(Date.now()).slice(0, 10),
-    resolution: cookie.resolution || "1920x1080",
-    __csrf: csrfToken,
-    channel: cookie.channel,
-    requestId: `${Date.now()}_${String(Math.floor(Math.random() * 1000)).padStart(4, "0")}`,
+    osver: OS_DEFAULTS.osver,
+    deviceId: options.deviceId || "",
+    os: OS_DEFAULTS.os,
+    appver: OS_DEFAULTS.appver,
+    versioncode: "140",
+    mobilename: "",
+    buildver: String(now).slice(0, 10),
+    resolution: "1920x1080",
+    channel: OS_DEFAULTS.channel,
+    requestId: `${now}_${String(Math.floor(Math.random() * 1000)).padStart(4, "0")}`,
+    __csrf: cookie.__csrf || "",
   };
   if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
-  if (cookie.MUSIC_A) header.MUSIC_A = cookie.MUSIC_A;
-  if (cookie.NMTID) header.NMTID = cookie.NMTID;
+  if (nmtid) header.NMTID = nmtid;
   data.header = header;
+  data.e_r = false;
   headers.Cookie = encodeCookie(header);
-  headers["User-Agent"] =
-    options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_API_IPHONE);
-  const encrypted = eapi(uri, data);
+  headers["User-Agent"] = UA_API_IPHONE;
+  headers.Referer = DOMAIN;
   return {
     url: `${EAPI_DOMAIN}/eapi/${uri.slice(5)}`,
     headers,
-    body: formEncode(encrypted),
+    body: formEncode(eapi(uri, data)),
   };
 }
 
 const OPERATIONS = {
-  // query/crypto/url triplets copied from module/*.js + createOption(query).
-  user_account: { uri: "/api/nuser/account/get", crypto: "weapi", data: () => ({}) },
+  user_account: { uri: "/api/nuser/account/get", data: () => ({}) },
   user_playlist: {
     uri: "/api/user/playlist",
-    crypto: "weapi",
     data: (query) => ({
       uid: query.uid,
       limit: query.limit || 30,
@@ -166,20 +113,17 @@ const OPERATIONS = {
   },
   song_detail: {
     uri: "/api/v3/song/detail",
-    crypto: "weapi",
     data: (query) => ({
       c: `[${String(query.ids).split(/\s*,\s*/).map((id) => `{"id":${id}}`).join(",")}]`,
     }),
   },
-  likelist: { uri: "/api/song/like/get", crypto: "eapi", data: (query) => ({ uid: query.uid }) },
+  likelist: { uri: "/api/song/like/get", data: (query) => ({ uid: query.uid }) },
   playlist_detail: {
     uri: "/api/v6/playlist/detail",
-    crypto: "eapi",
     data: (query) => ({ id: query.id, n: 100000, s: query.s || 8 }),
   },
   cloudsearch: {
     uri: "/api/cloudsearch/pc",
-    crypto: "eapi",
     data: (query) => ({
       s: query.keywords,
       type: query.type || 1,
@@ -188,21 +132,31 @@ const OPERATIONS = {
       total: true,
     }),
   },
-  song_url: { uri: "/api/song/enhance/player/url", crypto: "eapi", data: (query) => ({}) },
+  // Kumone songURL: playback URL by quality level.
+  song_url: {
+    uri: "/api/song/enhance/player/url/v1",
+    data: (query) => ({ ids: `[${query.id}]`, level: query.level, encodeType: "flac" }),
+  },
+  // Kumone songDownloadURL: download eligibility is resolved separately.
+  song_download_url: {
+    uri: "/api/song/enhance/download/url/v1",
+    data: (query) => ({ id: query.id, level: query.level }),
+  },
+  qr_key: { uri: "/api/login/qrcode/unikey", data: () => ({ type: 3 }) },
+  // Codes 800 expired / 801 waiting / 802 scanned / 803 success are results.
+  qr_check: {
+    uri: "/api/login/qrcode/client/login",
+    data: (query) => ({ key: query.key, type: 3 }),
+    anyCode: true,
+  },
 };
 
 export async function call(operation, query) {
   const spec = OPERATIONS[operation];
   if (!spec) throw Object.assign(new Error(`unknown operation ${operation}`), { code: "internal" });
-  // song_url sorts the response by requested ids (module/song_url.js).
-  const isSongUrl = operation === "song_url";
-  const ids = isSongUrl ? String(query.id).split(",") : null;
-  const data = isSongUrl
-    ? { ids: JSON.stringify(ids), br: parseInt(query.br || 999000, 10) }
-    : spec.data(query);
-  const built = buildRequest(spec.crypto, spec.uri, data, query);
-  // request.js: ENCRYPT_RESPONSE is false in the frozen 4.41.1 config, so
-  // use_e_r is false and responses arrive (and parse) as plain JSON.
+  const built = buildRequest(spec.uri, spec.data(query), query);
+  // ENCRYPT_RESPONSE is false in the frozen 4.41.1 config (e_r false), so
+  // responses arrive (and parse) as plain JSON.
   const response = await openkara.request({
     url: built.url,
     method: "POST",
@@ -216,17 +170,16 @@ export async function call(operation, query) {
     throw Object.assign(new Error("NetEase returned an unreadable response"), { code: "internal" });
   }
   if (body && body.code !== undefined) body.code = Number(body.code);
-  if (isSongUrl && body?.code === 200 && Array.isArray(body?.data)) {
-    body.data.sort((a, b) => ids.indexOf(String(a.id)) - ids.indexOf(String(b.id)));
-  }
+  const cookies = parseSetCookies(response.setCookies);
+  if (cookies.NMTID) nmtid = cookies.NMTID;
   const status = body?.code;
-  if (status !== undefined && status !== 200) {
+  if (!spec.anyCode && status !== undefined && status !== 200) {
     throw Object.assign(new Error(`NetEase rejected the request (code ${status})`), {
       code: "upstream",
       body: { code: status },
     });
   }
-  return { status: response.status ?? 200, body, cookie: [] };
+  return { status: response.status ?? 200, body, cookies };
 }
 
 export const OPERATION_NAMES = Object.keys(OPERATIONS);

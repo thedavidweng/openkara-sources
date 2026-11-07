@@ -1,6 +1,5 @@
-// bundled netease entry: src/{main,upstream,crypto}.mjs @ f7387fd tree
+// bundled netease entry: src/{main,upstream,crypto}.mjs
 // src/crypto.mjs
-var BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 var PRESET_KEY = openkara.encoding.utf8Encode("0CoJUm6Qyw8W8jud");
 var IV = openkara.encoding.utf8Encode("0102030405060708");
 var EAPI_KEY = openkara.encoding.utf8Encode("e82ckenh8dichen8");
@@ -11,26 +10,8 @@ function u8(value) {
   if (value instanceof Uint8Array) return value;
   throw new TypeError("expected a string or bytes");
 }
-function byteAt(bytes, index) {
-  if (typeof bytes === "string") {
-    const code = bytes.charCodeAt(index);
-    if (!Number.isInteger(code) || code > 255) throw new TypeError("bytes must be latin1");
-    return code;
-  }
-  return bytes[index];
-}
-function byteLength(bytes) {
-  if (typeof bytes === "string" || bytes instanceof Uint8Array) return bytes.length;
-  throw new TypeError("expected bytes");
-}
-function aesCbc(key, iv, data) {
-  return openkara.crypto.aesEncrypt({ mode: "cbc", key, iv }, data);
-}
 function aesEcb(key, data) {
   return openkara.crypto.aesEncrypt({ mode: "ecb", key }, data);
-}
-function base64(bytes) {
-  return openkara.encoding.base64Encode(bytes);
 }
 function hexUpper(bytes) {
   return openkara.encoding.hexEncode(bytes).toUpperCase();
@@ -38,45 +19,27 @@ function hexUpper(bytes) {
 function md5Hex(data) {
   return openkara.encoding.hexEncode(openkara.crypto.digest("md5", u8(data)));
 }
-function randomKey16() {
-  const bytes = openkara.crypto.randomBytes(16);
-  if (byteLength(bytes) < 16) throw new TypeError("randomBytes returned too few bytes");
-  let key = "";
-  for (let i = 0; i < 16; i += 1) key += BASE62[byteAt(bytes, i) % 62];
-  return key;
-}
-function reversed(value) {
-  let out = "";
-  for (let i = value.length - 1; i >= 0; i -= 1) out += value[i];
-  return out;
-}
-function weapi(object, secretKey) {
-  const inner = aesCbc(PRESET_KEY, IV, u8(JSON.stringify(object)));
-  const params = base64(aesCbc(u8(secretKey), IV, u8(base64(inner))));
-  const encSecKey = openkara.encoding.hexEncode(
-    openkara.crypto.rsaPublic(
-      { pem: WEAPI_PUBLIC_KEY },
-      u8(reversed(secretKey))
-    )
-  );
-  return { params, encSecKey };
-}
 function eapi(uri, object) {
   const data = typeof object === "object" ? JSON.stringify(object) : object;
   const message = `nobody${uri}use${data}md5forencrypt`;
   const joined = `${uri}-36cd479b6b5-${data}-36cd479b6b5-${md5Hex(message)}`;
   return { params: hexUpper(aesEcb(EAPI_KEY, u8(joined))) };
 }
-var WEAPI_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB
------END PUBLIC KEY-----`;
 
 // src/upstream.mjs
 var DOMAIN = "https://music.163.com";
 var EAPI_DOMAIN = "https://interfacepc.music.163.com";
-var UA_WEAPI_OSX = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0";
-var UA_WEAPI_PC = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 var UA_API_IPHONE = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)";
+var OS_DEFAULTS = {
+  os: "pc",
+  appver: "3.1.17.204416",
+  osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
+  channel: "netease"
+};
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+var chinaClientAddress = `116.${randomInt(25, 94)}.${randomInt(1, 255)}.${randomInt(1, 255)}`;
 function encodeCookie(cookie) {
   const parts = [];
   for (const key of Object.keys(cookie)) {
@@ -86,106 +49,60 @@ function encodeCookie(cookie) {
   }
   return parts.join("; ");
 }
-function toCookieObject(cookie) {
-  if (!cookie) return {};
-  if (typeof cookie === "object") return { ...cookie };
-  const out = {};
-  for (const part of String(cookie).split(";")) {
-    const index = part.indexOf("=");
-    if (index < 0) continue;
-    const key = part.slice(0, index).trim();
-    const value = part.slice(index + 1).trim();
-    if (key) out[key] = decodeURIComponent(value);
-  }
-  return out;
-}
-var OS_DEFAULTS = {
-  os: "pc",
-  appver: "3.1.17.204416",
-  osver: "Microsoft-Windows-10-Professional-build-19045-64bit",
-  channel: "netease"
-};
-function processCookie(cookie) {
-  const out = {
-    ...cookie,
-    __remember_me: "true",
-    _ntes_nuid: cookie._ntes_nuid || randomHex(32),
-    _ntes_nnid: cookie._ntes_nnid || `${randomHex(32)},${Date.now()}`,
-    osver: cookie.osver || OS_DEFAULTS.osver,
-    deviceId: cookie.deviceId || "",
-    os: cookie.os || OS_DEFAULTS.os,
-    channel: cookie.channel || OS_DEFAULTS.channel,
-    appver: cookie.appver || OS_DEFAULTS.appver
-  };
-  if (!out.MUSIC_U) out.MUSIC_A = out.MUSIC_A || "";
-  return out;
-}
-function randomHex(length) {
-  const bytes = openkara.crypto.randomBytes(Math.ceil(length / 2));
-  let hex = openkara.encoding.hexEncode(bytes);
-  while (hex.length < length) hex += openkara.encoding.hexEncode(openkara.crypto.randomBytes(1));
-  return hex.slice(0, length);
-}
-function toBoolean(value) {
-  if (value === "true" || value === "false") return value === "true";
-  return !!value;
-}
 function formEncode(fields) {
   return Object.entries(fields).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
 }
-function buildRequest(crypto, uri, data, options) {
-  const cookie = processCookie(toCookieObject(options.cookie));
-  const csrfToken = cookie.__csrf || "";
-  const headers = options.headers ? { ...options.headers } : {};
-  const realIP = options.realIP || "";
-  if (realIP) {
-    headers["X-Real-IP"] = realIP;
-    headers["X-Forwarded-For"] = realIP;
+var nmtid = "";
+function parseSetCookies(setCookies) {
+  const out = {};
+  for (const raw of Array.isArray(setCookies) ? setCookies : []) {
+    const pair = String(raw).split(";")[0];
+    const index = pair.indexOf("=");
+    if (index < 0) continue;
+    const name = pair.slice(0, index).trim();
+    const value = pair.slice(index + 1).trim();
+    if (name && value && value !== '""') out[name] = value;
   }
-  data.e_r = toBoolean(options.e_r !== void 0 ? options.e_r : data.e_r !== void 0 ? data.e_r : false);
-  if (crypto === "weapi") {
-    headers.Referer = DOMAIN;
-    headers["User-Agent"] = options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_WEAPI_PC);
-    data.csrf_token = csrfToken;
-    const encrypted2 = weapi(data, randomKey16());
-    return {
-      url: `${DOMAIN}/weapi/${uri.slice(5)}`,
-      headers: { ...headers, Cookie: encodeCookie(cookie) },
-      body: formEncode(encrypted2)
-    };
+  return out;
+}
+function buildRequest(uri, data, options) {
+  const cookie = options.cookie || {};
+  const headers = {};
+  if (options.realIP) {
+    headers["X-Real-IP"] = options.realIP;
+    headers["X-Forwarded-For"] = options.realIP;
   }
+  const now = Date.now();
   const header = {
-    osver: cookie.osver,
-    deviceId: cookie.deviceId,
-    os: cookie.os,
-    appver: cookie.appver,
-    versioncode: cookie.versioncode || "140",
-    mobilename: cookie.mobilename || "",
-    buildver: cookie.buildver || String(Date.now()).slice(0, 10),
-    resolution: cookie.resolution || "1920x1080",
-    __csrf: csrfToken,
-    channel: cookie.channel,
-    requestId: `${Date.now()}_${String(Math.floor(Math.random() * 1e3)).padStart(4, "0")}`
+    osver: OS_DEFAULTS.osver,
+    deviceId: options.deviceId || "",
+    os: OS_DEFAULTS.os,
+    appver: OS_DEFAULTS.appver,
+    versioncode: "140",
+    mobilename: "",
+    buildver: String(now).slice(0, 10),
+    resolution: "1920x1080",
+    channel: OS_DEFAULTS.channel,
+    requestId: `${now}_${String(Math.floor(Math.random() * 1e3)).padStart(4, "0")}`,
+    __csrf: cookie.__csrf || ""
   };
   if (cookie.MUSIC_U) header.MUSIC_U = cookie.MUSIC_U;
-  if (cookie.MUSIC_A) header.MUSIC_A = cookie.MUSIC_A;
-  if (cookie.NMTID) header.NMTID = cookie.NMTID;
+  if (nmtid) header.NMTID = nmtid;
   data.header = header;
+  data.e_r = false;
   headers.Cookie = encodeCookie(header);
-  headers["User-Agent"] = options.ua || (cookie.os === "osx" ? UA_WEAPI_OSX : UA_API_IPHONE);
-  const encrypted = eapi(uri, data);
+  headers["User-Agent"] = UA_API_IPHONE;
+  headers.Referer = DOMAIN;
   return {
     url: `${EAPI_DOMAIN}/eapi/${uri.slice(5)}`,
     headers,
-    body: formEncode(encrypted)
+    body: formEncode(eapi(uri, data))
   };
 }
 var OPERATIONS = {
-  // query/crypto/url triplets copied from module/*.js + createOption(query).
-  user_account: { uri: "/api/nuser/account/get", crypto: "weapi", data: () => ({}) },
+  user_account: { uri: "/api/nuser/account/get", data: () => ({}) },
   user_playlist: {
     uri: "/api/user/playlist",
-    crypto: "weapi",
     data: (query) => ({
       uid: query.uid,
       limit: query.limit || 30,
@@ -195,20 +112,17 @@ var OPERATIONS = {
   },
   song_detail: {
     uri: "/api/v3/song/detail",
-    crypto: "weapi",
     data: (query) => ({
       c: `[${String(query.ids).split(/\s*,\s*/).map((id) => `{"id":${id}}`).join(",")}]`
     })
   },
-  likelist: { uri: "/api/song/like/get", crypto: "eapi", data: (query) => ({ uid: query.uid }) },
+  likelist: { uri: "/api/song/like/get", data: (query) => ({ uid: query.uid }) },
   playlist_detail: {
     uri: "/api/v6/playlist/detail",
-    crypto: "eapi",
     data: (query) => ({ id: query.id, n: 1e5, s: query.s || 8 })
   },
   cloudsearch: {
     uri: "/api/cloudsearch/pc",
-    crypto: "eapi",
     data: (query) => ({
       s: query.keywords,
       type: query.type || 1,
@@ -217,15 +131,28 @@ var OPERATIONS = {
       total: true
     })
   },
-  song_url: { uri: "/api/song/enhance/player/url", crypto: "eapi", data: (query) => ({}) }
+  // Kumone songURL: playback URL by quality level.
+  song_url: {
+    uri: "/api/song/enhance/player/url/v1",
+    data: (query) => ({ ids: `[${query.id}]`, level: query.level, encodeType: "flac" })
+  },
+  // Kumone songDownloadURL: download eligibility is resolved separately.
+  song_download_url: {
+    uri: "/api/song/enhance/download/url/v1",
+    data: (query) => ({ id: query.id, level: query.level })
+  },
+  qr_key: { uri: "/api/login/qrcode/unikey", data: () => ({ type: 3 }) },
+  // Codes 800 expired / 801 waiting / 802 scanned / 803 success are results.
+  qr_check: {
+    uri: "/api/login/qrcode/client/login",
+    data: (query) => ({ key: query.key, type: 3 }),
+    anyCode: true
+  }
 };
 async function call(operation, query) {
   const spec = OPERATIONS[operation];
   if (!spec) throw Object.assign(new Error(`unknown operation ${operation}`), { code: "internal" });
-  const isSongUrl = operation === "song_url";
-  const ids = isSongUrl ? String(query.id).split(",") : null;
-  const data = isSongUrl ? { ids: JSON.stringify(ids), br: parseInt(query.br || 999e3, 10) } : spec.data(query);
-  const built = buildRequest(spec.crypto, spec.uri, data, query);
+  const built = buildRequest(spec.uri, spec.data(query), query);
   const response = await openkara.request({
     url: built.url,
     method: "POST",
@@ -239,17 +166,16 @@ async function call(operation, query) {
     throw Object.assign(new Error("NetEase returned an unreadable response"), { code: "internal" });
   }
   if (body && body.code !== void 0) body.code = Number(body.code);
-  if (isSongUrl && body?.code === 200 && Array.isArray(body?.data)) {
-    body.data.sort((a, b) => ids.indexOf(String(a.id)) - ids.indexOf(String(b.id)));
-  }
+  const cookies = parseSetCookies(response.setCookies);
+  if (cookies.NMTID) nmtid = cookies.NMTID;
   const status = body?.code;
-  if (status !== void 0 && status !== 200) {
+  if (!spec.anyCode && status !== void 0 && status !== 200) {
     throw Object.assign(new Error(`NetEase rejected the request (code ${status})`), {
       code: "upstream",
       body: { code: status }
     });
   }
-  return { status: response.status ?? 200, body, cookie: [] };
+  return { status: response.status ?? 200, body, cookies };
 }
 var OPERATION_NAMES = Object.keys(OPERATIONS);
 
@@ -257,7 +183,7 @@ var OPERATION_NAMES = Object.keys(OPERATIONS);
 var MANIFEST = {
   package_id: "org.openkara.netease-quickjs",
   source_id: "netease",
-  version: "2.0.0",
+  version: "2.1.0",
   name: "NetEase Cloud Music",
   description: "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
   capabilities: [
@@ -269,12 +195,7 @@ var MANIFEST = {
     "preview",
     "import"
   ],
-  authentication: {
-    flow: "web",
-    sign_in_url: "https://music.163.com/#/login",
-    navigation_origins: ["https://music.163.com"],
-    cookie_names: ["MUSIC_U", "__csrf"]
-  },
+  authentication: { flow: "plugin", presentations: ["qr"] },
   requires_authentication: [
     "search",
     "liked_tracks",
@@ -290,6 +211,10 @@ var TRACK_CACHE_LIMIT = 2e4;
 var CURSOR_LIMIT = 256;
 var CURSOR_TTL_MS = 30 * 60 * 1e3;
 var CHALLENGE_TTL_MS = 10 * 60 * 1e3;
+var QR_POLL_MS = 2e3;
+var DEVICE_ID_KEY = "device-id";
+var PREVIEW_LEVEL = "exhigh";
+var IMPORT_LEVEL = "lossless";
 var AUDIO_EXTENSIONS = ["mp3", "flac", "wav", "ogg", "aac", "m4a"];
 var REFUSAL_MESSAGES = {
   no_play_rights: "NetEase does not grant play rights for this track on this account.",
@@ -348,13 +273,16 @@ function httpsUrl(value) {
   const upgraded = text.startsWith("http://") ? `https://${text.slice(7)}` : text;
   const match = /^https:\/\/([A-Za-z0-9.-]+(?::\d+)?)(\/[^?#]*)?(\?[^#]*)?(#.*)?$/.exec(upgraded);
   if (!match) return null;
-  const [, authority, path = "/", query = "", fragment = ""] = match;
-  if (authority.includes("@")) return null;
-  const host = authority.split(":")[0];
-  if (!host || !host.includes(".")) return null;
+  const [, rawAuthority, path = "/", query = "", fragment = ""] = match;
+  if (rawAuthority.includes("@")) return null;
+  const colon = rawAuthority.indexOf(":");
+  const host = (colon < 0 ? rawAuthority : rawAuthority.slice(0, colon)).toLowerCase();
+  const port = colon < 0 ? "" : rawAuthority.slice(colon + 1);
+  if (!host || !host.includes(".") || /[^a-z0-9.-]/.test(host)) return null;
+  if (port !== "" && port !== "443") return null;
   if (/[\s<>\"\\^`{|}]/.test(upgraded)) return null;
   void fragment;
-  return { origin: `https://${authority}`, href: `https://${authority}${path}${query}` };
+  return { origin: `https://${host}`, href: `https://${host}${path}${query}` };
 }
 function artworkResource(value, size, allowedOrigins) {
   const url = httpsUrl(value);
@@ -470,10 +398,29 @@ function resetSession(status = "signed_out") {
 function isCancelled() {
   return state.cancelled === true;
 }
-async function upstream(operation, query, credentials = state.cookie) {
+var deviceId = null;
+function persistentDeviceId() {
+  if (deviceId) return deviceId;
+  const stored = openkara.storage.get(DEVICE_ID_KEY);
+  if (typeof stored === "string" && /^[0-9A-F]{52}$/.test(stored)) {
+    deviceId = stored;
+  } else {
+    deviceId = openkara.encoding.hexEncode(openkara.crypto.randomBytes(26)).toUpperCase();
+    openkara.storage.set(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+async function upstreamFull(operation, query, credentials = state.cookie, accept = [200]) {
+  const device = persistentDeviceId();
   let response;
   try {
-    response = await call(operation, { ...query, cookie: credentials, timeout: 25e3 });
+    response = await call(operation, {
+      ...query,
+      cookie: credentials,
+      deviceId: device,
+      realIP: chinaClientAddress,
+      timeout: 25e3
+    });
   } catch (error) {
     if (typeof error?.code === "string" && error.code !== "upstream" && error.code !== "internal")
       throw error;
@@ -482,8 +429,11 @@ async function upstream(operation, query, credentials = state.cookie) {
   }
   const code = response?.body?.code;
   if (code === void 0) fail("internal", "NetEase returned an unreadable response");
-  if (code !== 200) upstreamError(code);
-  return response.body;
+  if (!accept.includes(code)) upstreamError(code);
+  return { body: response.body, cookies: response.cookies };
+}
+async function upstream(operation, query, credentials = state.cookie) {
+  return (await upstreamFull(operation, query, credentials)).body;
 }
 function requireSession() {
   if (state.session.state === "signed_in" && state.cookie) return;
@@ -575,6 +525,49 @@ function describe(params) {
     session: state.session
   };
 }
+async function signIn(credentials) {
+  const started = state.epoch;
+  const wasCancelled = useCancellation();
+  const body = await upstream("user_account", {}, credentials);
+  if (wasCancelled() || started !== state.epoch) return null;
+  const id = body?.account?.id;
+  if (!Number.isSafeInteger(id) || id <= 0)
+    fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
+  const nickname = body?.profile?.nickname;
+  resetSession();
+  state.cookie = credentials;
+  state.uid = Number(id);
+  state.session = {
+    state: "signed_in",
+    account: {
+      id: String(id),
+      display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account"
+    }
+  };
+  return state.session;
+}
+async function songData(id, purpose) {
+  if (purpose === "import") {
+    let download = null;
+    try {
+      download = (await authed("song_download_url", { id, level: IMPORT_LEVEL })).data;
+    } catch (error) {
+      if (error?.code !== "internal") throw error;
+    }
+    if (isObject(download) && (httpsUrl(download.url) || download.freeTrialInfo)) return download;
+  }
+  const body = await authed("song_url", {
+    id,
+    level: purpose === "import" ? IMPORT_LEVEL : PREVIEW_LEVEL
+  });
+  return array(body.data)[0] ?? {};
+}
+function isTrial(data, track) {
+  if (data.freeTrialInfo !== void 0 && data.freeTrialInfo !== null) return true;
+  const response = safeCount(data.time);
+  const known = track.duration_ms;
+  return response > 0 && known > 0 && Math.abs(response - known) > Math.max(2e3, known * 0.03);
+}
 var methods = {
   describe,
   "session.restore": async (params) => {
@@ -585,25 +578,7 @@ var methods = {
       fail("session_expired", "Saved NetEase sign-in is incomplete. Sign in again.");
     }
     try {
-      const started = state.epoch;
-      const wasCancelled = useCancellation();
-      const body = await upstream("user_account", {}, credentials);
-      if (wasCancelled() || started !== state.epoch) return state.session;
-      const id = body?.account?.id;
-      if (!Number.isSafeInteger(id) || id <= 0)
-        fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
-      const nickname = body?.profile?.nickname;
-      resetSession();
-      state.cookie = credentials;
-      state.uid = Number(id);
-      state.session = {
-        state: "signed_in",
-        account: {
-          id: String(id),
-          display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account"
-        }
-      };
-      return state.session;
+      return await signIn(credentials) ?? state.session;
     } catch (error) {
       if (error?.code === "session_expired") resetSession("expired");
       throw error;
@@ -611,53 +586,57 @@ var methods = {
   },
   "auth.start": async () => {
     state.challenges.clear();
+    const started = state.epoch;
+    const wasCancelled = useCancellation();
+    const { unikey } = await upstream("qr_key", {}, null);
+    if (wasCancelled() || started !== state.epoch || !isText(unikey))
+      fail("internal", "NetEase did not provide a sign-in code");
     const challenge = openkara.encoding.base64Encode(openkara.crypto.randomBytes(18), {
       urlSafe: true,
       padding: false
     });
     const expires = Date.now() + CHALLENGE_TTL_MS;
-    state.challenges.set(challenge, { state: "pending", expires });
+    state.challenges.set(challenge, { state: "pending", expires, unikey });
     return {
       challenge,
       expires_at: new Date(expires).toISOString(),
-      presentation: { kind: "web" }
+      poll_after_ms: QR_POLL_MS,
+      presentation: {
+        kind: "qr",
+        content: `https://music.163.com/login?codekey=${unikey}`,
+        text: "Scan the code with the NetEase Cloud Music app and confirm the sign-in."
+      }
     };
   },
-  "auth.complete": async (params) => {
+  "auth.poll": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
     const entry = state.challenges.get(params.challenge);
     if (!entry) fail("challenge_expired");
     if (entry.state === "pending" && Date.now() >= entry.expires) entry.state = "expired";
-    if (entry.state !== "pending") fail("challenge_expired");
-    const credentials = parseCredentials(params?.credentials);
-    if (!credentials)
-      fail(
-        "authentication_required",
-        "NetEase sign-in did not provide a complete session. Try signing in again."
-      );
+    if (entry.state !== "pending") return { state: entry.state };
     const started = state.epoch;
     const wasCancelled = useCancellation();
-    const body = await upstream("user_account", {}, credentials);
-    if (wasCancelled() || started !== state.epoch) return state.session;
-    const id = body?.account?.id;
-    if (!Number.isSafeInteger(id) || id <= 0)
-      fail("session_expired", "NetEase did not confirm the sign-in. Sign in again.");
-    const nickname = body?.profile?.nickname;
-    resetSession();
-    state.cookie = credentials;
-    state.uid = Number(id);
-    state.session = {
-      state: "signed_in",
-      account: {
-        id: String(id),
-        display_name: isText(nickname) && nickname.trim() ? nickname.trim() : "NetEase account"
-      }
-    };
-    return {
-      session: state.session,
-      credentials: { MUSIC_U: credentials.MUSIC_U, __csrf: credentials.__csrf }
-    };
+    const { body, cookies } = await upstreamFull(
+      "qr_check",
+      { key: entry.unikey },
+      null,
+      [800, 801, 802, 803]
+    );
+    if (wasCancelled() || started !== state.epoch || entry.state !== "pending")
+      return { state: entry.state === "pending" ? "cancelled" : entry.state };
+    if (body.code === 800) {
+      entry.state = "expired";
+      return { state: "expired" };
+    }
+    if (body.code !== 803) return { state: "pending", poll_after_ms: QR_POLL_MS };
+    const credentials = parseCredentials({ MUSIC_U: cookies.MUSIC_U, __csrf: cookies.__csrf });
+    if (!credentials)
+      fail("authentication_required", "NetEase sign-in did not provide a complete session. Try again.");
+    const session = await signIn(credentials);
+    if (!session) return { state: "cancelled" };
+    return { state: "complete", session, credentials };
   },
+  "auth.complete": async () => fail("unsupported_operation"),
   "auth.cancel": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
     const entry = state.challenges.get(params.challenge);
@@ -785,10 +764,8 @@ var methods = {
     const track = found.get(params.track_id);
     if (!track) fail("not_found", "NetEase could not find that track.");
     if (track.refusal) return { kind: "refusal", refusal: track.refusal };
-    const body = await authed("song_url", { id: params.track_id, br: 32e4 });
-    const data = array(body.data)[0] ?? {};
-    if (data.freeTrialInfo !== void 0 && data.freeTrialInfo !== null)
-      return { kind: "refusal", refusal: refusal("trial_clip") };
+    const data = await songData(params.track_id, params.purpose);
+    if (isTrial(data, track)) return { kind: "refusal", refusal: refusal("trial_clip") };
     const url = httpsUrl(data.url);
     if (!url) return { kind: "refusal", refusal: refusal("no_media") };
     const extension = typeof data.type === "string" ? data.type.toLowerCase() : "";

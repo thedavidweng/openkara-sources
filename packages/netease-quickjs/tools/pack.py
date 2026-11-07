@@ -36,6 +36,7 @@ FILES = [
     "tools/bundle.mjs",
     "tools/pack.py",
     "test/weapi-vector.mjs",
+    "test/provider.mjs",
     "LICENSES/netease-api-MIT.txt",
 ]
 
