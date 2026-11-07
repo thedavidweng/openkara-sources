@@ -8,6 +8,7 @@ plus the release pipeline that publishes them.
 - `packages/netease/` - the NetEase Cloud Music source (manifest, worker, LICENSE, NOTICE) for Node runtime hosts (OpenKara 0.17/0.18).
 - `packages/netease-quickjs/` - protocol-2 port for the embedded QuickJS (`openkara-js`) engine in OpenKara 0.19+.
 - `packages/qqmusic-quickjs/` - QQ Music source for the embedded QuickJS (`openkara-js`) engine in OpenKara 0.19+.
+- `packages/bilibili-quickjs/` - Bilibili source for the embedded QuickJS (`openkara-js`) engine in OpenKara 0.19+.
 - `registry.json` - the Source Registry (format_version 1) document for OpenKara 0.19+.
 - `scripts/verify-registry.mjs` - validates `registry.json` format and release archives.
 - `scripts/build-package.mjs` - stages a package, runs `npm ci --omit=dev --ignore-scripts`, writes a

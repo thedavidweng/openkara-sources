@@ -142,6 +142,48 @@
           ]
         }
       ]
+    },
+    {
+      "package_id": "org.openkara.bilibili-quickjs",
+      "source_id": "bilibili",
+      "name": "Bilibili",
+      "description": "Search Bilibili videos and your favorites folders, and preview or import the audio of videos you are permitted to play.",
+      "license": "AGPL-3.0-only",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.19.0",
+          "size": 30732,
+          "integrity": "sha512-k1N3M7rjaqUydi1E9S0HVwXRckJfrFF4YHWlv77ssfj6xLgdXNxZbiy/Keg/E4CJDkh275f4Tk59dsNKisdYzQ==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/bilibili-quickjs-v1.0.0/openkara-source-bilibili-1.0.0.tar.gz"
+          ],
+          "resource_origins": [
+            "https://www.bilibili.com",
+            "https://api.bilibili.com",
+            "https://passport.bilibili.com",
+            "https://b23.tv",
+            "https://i0.hdslb.com",
+            "https://i1.hdslb.com",
+            "https://i2.hdslb.com"
+          ],
+          "media_origins": [
+            "https://upos-sz-mirrorcosov.bilivideo.com",
+            "https://upos-hz-mirrorakam.akamaized.net"
+          ],
+          "capabilities": [
+            "search",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import"
+          ]
+        }
+      ]
     }
   ]
 }
