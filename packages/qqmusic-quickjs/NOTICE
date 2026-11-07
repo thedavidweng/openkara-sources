@@ -1,0 +1,21 @@
+OpenKara QQ Music QuickJS source (org.openkara.qqmusic-quickjs)
+Copyright David Weng and contributors.
+
+This package is distributed under AGPL-3.0-only (see LICENSE). It is a
+Streaming Source plugin for OpenKara and runs on the embedded QuickJS
+(`openkara-js`) runtime: `dist/entry.mjs` is a single self-contained ES module
+built from `src/` (the AGPL corresponding source) with the pinned
+devDependency esbuild@0.28.1 (see package.json/package-lock.json).
+
+The QQ Music wire (search, song detail, vkey, playlist endpoints and the
+request shapes) is ported from dddaniel1/mygo-plugin-qqmusic, commit
+4bb04cc4d5f8ff2ea528a237c4fe9737b79eda87 (see SOURCES.md). That project is
+MIT licensed:
+
+  Copyright (c) 2026 dddaniel1
+
+The fixed upstream MIT license text is included in
+LICENSES/mygo-plugin-qqmusic-MIT.txt.
+
+Third-party build tooling (esbuild) is a development-only dependency and is
+not shipped in the source archive.

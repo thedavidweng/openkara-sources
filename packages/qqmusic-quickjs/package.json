@@ -1,0 +1,18 @@
+{
+  "name": "org.openkara.qqmusic-quickjs",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "bundle": "node tools/bundle.mjs --out dist/entry.mjs",
+    "pack": "node tools/bundle.mjs --out dist/entry.mjs && python3 tools/pack.py --out dist",
+    "test": "node --check src/main.mjs && node --check tools/bundle.mjs && node test/qqmusic.mjs && node tools/bundle.mjs --out /tmp/verify-qqmusic-entry.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
