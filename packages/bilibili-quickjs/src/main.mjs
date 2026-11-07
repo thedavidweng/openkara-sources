@@ -49,10 +49,16 @@ function pageOf(cursor) {
   if (!PAGE.test(cursor)) fail("invalid_cursor");
   return Number(cursor);
 }
-const plain = (html) =>
-  html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&(amp|lt|gt|quot|#39);/g, (_, name) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[name]);
+// Search titles carry <em> keyword highlights. Strip tags until none are left, then decode entities;
+// the host renders the result as plain text.
+function plain(html) {
+  let text = html;
+  for (let before; before !== text; ) {
+    before = text;
+    text = text.replace(/<[^>]*>/g, "");
+  }
+  return text.replace(/&(amp|lt|gt|quot|#39);/g, (_, name) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[name]);
+}
 // "3:05" or "1:02:03" to milliseconds.
 const clock = (text) => text.split(":").reduce((total, part) => total * 60 + Number(part), 0) * 1000;
 const ranged = (url, range) =>

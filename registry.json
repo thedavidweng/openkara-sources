@@ -156,8 +156,8 @@
             2
           ],
           "minimum_host_version": "0.19.0",
-          "size": 30732,
-          "integrity": "sha512-k1N3M7rjaqUydi1E9S0HVwXRckJfrFF4YHWlv77ssfj6xLgdXNxZbiy/Keg/E4CJDkh275f4Tk59dsNKisdYzQ==",
+          "size": 30827,
+          "integrity": "sha512-yqfsfvlFUE0XdJCjJoOXk9052yRCd21zJdcA1umA8N5BC9e84T15OJLXMR9iAdolhVKPQPTgdoh7SDwJaG9uKA==",
           "urls": [
             "https://github.com/thedavidweng/openkara-sources/releases/download/bilibili-quickjs-v1.0.0/openkara-source-bilibili-1.0.0.tar.gz"
           ],
