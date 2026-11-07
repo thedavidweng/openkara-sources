@@ -1,0 +1,63 @@
+{
+  "manifest_version": 1,
+  "package_id": "org.openkara.qqmusic-quickjs",
+  "publisher": "org.openkara",
+  "source_id": "qqmusic",
+  "version": "1.0.0",
+  "minimum_host_version": "0.19.0",
+  "protocol": {
+    "majors": [
+      2
+    ],
+    "minor": 0
+  },
+  "runtime": {
+    "kind": "openkara-js",
+    "major": 1
+  },
+  "entry": "dist/entry.mjs",
+  "name": "QQ Music",
+  "description": "Search QQ Music and your playlists, and preview or import full-length tracks you are permitted to play.",
+  "license": "AGPL-3.0-only",
+  "capabilities": [
+    "search",
+    "playlists",
+    "playlist_tracks",
+    "track_details",
+    "preview",
+    "import"
+  ],
+  "authentication": {
+    "flow": "web",
+    "sign_in_url": "https://y.qq.com/",
+    "navigation_origins": [
+      "https://y.qq.com",
+      "https://xui.ptlogin2.qq.com",
+      "https://graph.qq.com"
+    ],
+    "cookie_names": [
+      "uin",
+      "qm_keyst"
+    ]
+  },
+  "requires_authentication": [
+    "playlists"
+  ],
+  "resource_origins": [
+    "https://c.y.qq.com",
+    "https://c6.y.qq.com",
+    "https://u.y.qq.com",
+    "https://y.gtimg.cn",
+    "https://qpic.y.qq.com"
+  ],
+  "media_origins": [
+    "https://ws.stream.qqmusic.qq.com",
+    "https://ws6.stream.qqmusic.qq.com",
+    "https://dl.stream.qqmusic.qq.com",
+    "https://isure.stream.qqmusic.qq.com",
+    "https://isure6.stream.qqmusic.qq.com",
+    "https://sjy.stream.qqmusic.qq.com",
+    "https://sjy6.stream.qqmusic.qq.com",
+    "https://aqqmusic.tc.qq.com"
+  ]
+}

@@ -96,6 +96,94 @@
           ]
         }
       ]
+    },
+    {
+      "package_id": "org.openkara.qqmusic-quickjs",
+      "source_id": "qqmusic",
+      "name": "QQ Music",
+      "description": "Search QQ Music and your playlists, and preview or import full-length tracks you are permitted to play.",
+      "license": "AGPL-3.0-only",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.19.0",
+          "size": 26687,
+          "integrity": "sha512-lxpTCVR8NBMXCnf9WRtHo98g9j314uTakCrLISOPzJzrgJ5INqHpvxIrGfPmCDlIpr8HzxYvq2JwtYMgXj4+ow==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/qqmusic-quickjs-v1.0.0/openkara-source-qqmusic-1.0.0.tar.gz"
+          ],
+          "resource_origins": [
+            "https://c.y.qq.com",
+            "https://c6.y.qq.com",
+            "https://u.y.qq.com",
+            "https://y.gtimg.cn",
+            "https://qpic.y.qq.com"
+          ],
+          "media_origins": [
+            "https://ws.stream.qqmusic.qq.com",
+            "https://ws6.stream.qqmusic.qq.com",
+            "https://dl.stream.qqmusic.qq.com",
+            "https://isure.stream.qqmusic.qq.com",
+            "https://isure6.stream.qqmusic.qq.com",
+            "https://sjy.stream.qqmusic.qq.com",
+            "https://sjy6.stream.qqmusic.qq.com",
+            "https://aqqmusic.tc.qq.com"
+          ],
+          "capabilities": [
+            "search",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import"
+          ]
+        }
+      ]
+    },
+    {
+      "package_id": "org.openkara.bilibili-quickjs",
+      "source_id": "bilibili",
+      "name": "Bilibili",
+      "description": "Search Bilibili videos and your favorites folders, and preview or import the audio of videos you are permitted to play.",
+      "license": "AGPL-3.0-only",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.19.0",
+          "size": 30911,
+          "integrity": "sha512-+1EvNEdkYlvYcreS89HQKdqKW67StgbhJa8XimfYd6lbbwWx3T72BTr8XmRyVD+s/7r4K57x8wFJ8i6WK27ffQ==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/bilibili-quickjs-v1.0.0/openkara-source-bilibili-1.0.0.tar.gz"
+          ],
+          "resource_origins": [
+            "https://www.bilibili.com",
+            "https://api.bilibili.com",
+            "https://passport.bilibili.com",
+            "https://b23.tv",
+            "https://i0.hdslb.com",
+            "https://i1.hdslb.com",
+            "https://i2.hdslb.com"
+          ],
+          "media_origins": [
+            "https://upos-sz-mirrorcosov.bilivideo.com",
+            "https://upos-hz-mirrorakam.akamaized.net"
+          ],
+          "capabilities": [
+            "search",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import"
+          ]
+        }
+      ]
     }
   ]
 }

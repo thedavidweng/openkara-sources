@@ -1,0 +1,21 @@
+OpenKara Bilibili QuickJS source (org.openkara.bilibili-quickjs)
+Copyright David Weng and contributors.
+
+This package is distributed under AGPL-3.0-only (see LICENSE). It is a
+Streaming Source plugin for OpenKara and runs on the embedded QuickJS
+(`openkara-js`) runtime: `dist/entry.mjs` is a single self-contained ES module
+built from `src/` (the AGPL corresponding source) with the pinned
+devDependency esbuild@0.28.1 (see package.json/package-lock.json).
+
+The Bilibili wire (video detail, playurl, favorites and QR sign-in endpoints
+and the request shapes) is ported from GentleM4dman/mygo-music-bilibili,
+commit 3b0aa100d425b59504570ca84bdace80877ac26d (see SOURCES.md). That
+project is MIT licensed:
+
+  Copyright (c) 2026 GentleM4dman
+
+The fixed upstream MIT license text is included in
+LICENSES/mygo-music-bilibili-MIT.txt.
+
+Third-party build tooling (esbuild) is a development-only dependency and is
+not shipped in the source archive.
