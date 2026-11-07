@@ -1,9 +1,9 @@
 name: Release QuickJS Package
 
-# Cut a release by pushing a tag: git tag netease-quickjs-v2.0.0 && git push origin netease-quickjs-v2.0.0
+# Cut a release by pushing <source>-quickjs-v<version>, e.g. netease-quickjs-v2.0.0 or qqmusic-quickjs-v1.0.0.
 on:
   push:
-    tags: ["netease-quickjs-v[0-9]+.[0-9]+.[0-9]+*"]
+    tags: ["*-quickjs-v[0-9]+.[0-9]+.[0-9]+*"]
 
 permissions: {}
 
@@ -30,9 +30,10 @@ jobs:
 
       - name: Check the tag matches the package version
         run: |
-          version="${GITHUB_REF_NAME#netease-quickjs-v}"
-          manifest="$(node -p "require('./packages/netease-quickjs/manifest.json').version")"
-          package="$(node -p "require('./packages/netease-quickjs/package.json').version")"
+          version="${GITHUB_REF_NAME##*-quickjs-v}"
+          source="${GITHUB_REF_NAME%-quickjs-v*}"
+          manifest="$(node -p "require('./packages/'+process.argv[1]+'-quickjs/manifest.json').version" "$source")"
+          package="$(node -p "require('./packages/'+process.argv[1]+'-quickjs/package.json').version" "$source")"
           if [ "$version" != "$manifest" ] || [ "$version" != "$package" ]; then
             echo "tag version $version, manifest $manifest, package.json $package must all match" >&2
             exit 1
@@ -40,24 +41,27 @@ jobs:
 
       - name: Build the package archive
         run: |
-          cd packages/netease-quickjs
+          source="${GITHUB_REF_NAME%-quickjs-v*}"
+          cd "packages/${source}-quickjs"
           npm ci
           npm run pack
 
       - name: Verify archive against registry entry
         run: |
-          version="${GITHUB_REF_NAME#netease-quickjs-v}"
-          archive="packages/netease-quickjs/dist/openkara-source-netease-${version}.tar.gz"
+          version="${GITHUB_REF_NAME##*-quickjs-v}"
+          source="${GITHUB_REF_NAME%-quickjs-v*}"
+          archive="packages/${source}-quickjs/dist/openkara-source-${source}-${version}.tar.gz"
           node scripts/verify-registry.mjs --archive "$archive" --version "$version"
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#netease-quickjs-v}"
-          archive="packages/netease-quickjs/dist/openkara-source-netease-${version}.tar.gz"
+          version="${GITHUB_REF_NAME##*-quickjs-v}"
+          source="${GITHUB_REF_NAME%-quickjs-v*}"
+          archive="packages/${source}-quickjs/dist/openkara-source-${source}-${version}.tar.gz"
           gh release create "$GITHUB_REF_NAME" \
             "$archive" \
-            --title "NetEase QuickJS source $version" \
-            --notes "NetEase QuickJS Streaming Source package $version for OpenKara 0.19+." \
+            --title "$source QuickJS source $version" \
+            --notes "$source QuickJS Streaming Source package $version for OpenKara 0.19+." \
             --verify-tag --latest=false
