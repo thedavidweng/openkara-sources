@@ -222,7 +222,7 @@ test("selects registry package by package_id only when multiple packages share s
     multiPkgRegistry.packages.unshift(otherPkg);
 
     const actualSri = "sha512-" + createHash("sha512").update(archiveGz).digest("base64");
-    for (const pkg of multiPkgRegistry.packages) {
+    for (const pkg of multiPkgRegistry.packages.filter((p) => p.source_id === manifest.source_id)) {
       const entry = pkg.versions.find((v) => v.version === manifest.version);
       entry.size = archiveGz.length;
       entry.integrity = actualSri;
