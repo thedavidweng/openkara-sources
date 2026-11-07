@@ -142,13 +142,6 @@ const OPERATIONS = {
     uri: "/api/song/enhance/download/url/v1",
     data: (query) => ({ id: query.id, level: query.level }),
   },
-  qr_key: { uri: "/api/login/qrcode/unikey", data: () => ({ type: 3 }) },
-  // Codes 800 expired / 801 waiting / 802 scanned / 803 success are results.
-  qr_check: {
-    uri: "/api/login/qrcode/client/login",
-    data: (query) => ({ key: query.key, type: 3 }),
-    anyCode: true,
-  },
 };
 
 export async function call(operation, query) {
@@ -173,7 +166,7 @@ export async function call(operation, query) {
   const cookies = parseSetCookies(response.setCookies);
   if (cookies.NMTID) nmtid = cookies.NMTID;
   const status = body?.code;
-  if (!spec.anyCode && status !== undefined && status !== 200) {
+  if (status !== undefined && status !== 200) {
     throw Object.assign(new Error(`NetEase rejected the request (code ${status})`), {
       code: "upstream",
       body: { code: status },

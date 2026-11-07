@@ -12,7 +12,8 @@ runtime. Single self-contained ES module, no Node or browser globals.
   header fields Kumone sends (persistent device id, China Client Address as
   `X-Real-IP`). Uses only `openkara.request` / `openkara.crypto` /
   `openkara.encoding`.
-- Sign-in is a QR code scanned in the NetEase app (`auth.start` / `auth.poll`).
+- Sign-in opens the official NetEase web page (`auth.start` / `auth.complete`),
+  which offers QR, SMS code, and password sign-in.
 - Song URLs are requested by quality level: `exhigh` for preview, `lossless`
   (download endpoint, then player endpoint) for import.
 - Provider logic (search, liked tracks, playlists, details, rights mapping,
