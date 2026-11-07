@@ -138,7 +138,7 @@ async function verify(credentials) {
   const tk = hash33(key);
   const body = await call(
     "https://c6.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cv=4747474&ct=24&format=json" +
-      "&inCharset=utf-8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&uin=861397272" +
+      `&inCharset=utf-8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&uin=${id}` +
       `&g_tk_new_20200303=${tk}&g_tk=725250446&cid=205360838&userid=${id}&reqfrom=1&reqtype=0` +
       `&hostUin=0&loginUin=${id}`,
     { cookie: header },
