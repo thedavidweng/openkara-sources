@@ -1,4 +1,4 @@
-# QQ Music QuickJS source (candidate)
+# QQ Music QuickJS source
 
 Protocol-2 Streaming Source for QQ Music on the embedded QuickJS (`openkara-js`) runtime. Single self-contained ES module, no Node or browser globals.
 

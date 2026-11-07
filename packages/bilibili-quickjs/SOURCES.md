@@ -9,7 +9,7 @@
 
 ## Contracts
 
-- Streaming Source protocol 2.1, Streaming Source host API and Source host contracts (`docs/references/contracts/` in the OpenKara app repository).
+- Streaming Source protocol 2.0, Streaming Source host API and Source host contracts (`docs/references/contracts/` in the OpenKara app repository).
 
 ## Build tooling
 

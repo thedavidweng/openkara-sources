@@ -61,8 +61,14 @@ function plain(html) {
 }
 // "3:05" or "1:02:03" to milliseconds.
 const clock = (text) => text.split(":").reduce((total, part) => total * 60 + Number(part), 0) * 1000;
+// A mirror that drops the connection counts as a failed mirror, so the next one is tried.
 const ranged = (url, range) =>
-  openkara.request({ url, headers: { referer: REFERER, "user-agent": UA, range: `bytes=${range}` }, responseType: "bytes" });
+  openkara
+    .request({ url, headers: { referer: REFERER, "user-agent": UA, range: `bytes=${range}` }, responseType: "bytes" })
+    .catch((error) => {
+      if (error.code !== "network") throw error;
+      return { status: 0 };
+    });
 const refusal = (reason, message) => ({ kind: "refusal", refusal: { reason, message } });
 
 let cookie = "";
@@ -170,10 +176,11 @@ async function verify(credentials) {
   if (!SESSION_COOKIES.every((name) => valid(credentials[name]))) fail("session_expired");
   const header = SESSION_COOKIES.map((name) => `${name}=${credentials[name]}`).join("; ");
   const { body } = await get(`${API}/x/web-interface/nav`, header);
-  if (!body.data.isLogin) fail("session_expired", "Bilibili did not confirm the sign-in. Sign in again.");
+  if (body.code === -101) fail("session_expired", "Bilibili did not confirm the sign-in. Sign in again.");
+  const data = check(body);
   cookie = header;
-  mid = String(body.data.mid);
-  session = { state: "signed_in", account: { id: mid, display_name: body.data.uname } };
+  mid = String(data.mid);
+  session = { state: "signed_in", account: { id: mid, display_name: data.uname } };
   return session;
 }
 // The confirmed scan hands out the session cookies in the poll's Set-Cookie

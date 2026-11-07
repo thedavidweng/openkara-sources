@@ -1,4 +1,4 @@
-# Bilibili QuickJS source (candidate)
+# Bilibili QuickJS source
 
 Protocol-2 Streaming Source for Bilibili on the embedded QuickJS (`openkara-js`) runtime. Single self-contained ES module, no Node or browser globals.
 

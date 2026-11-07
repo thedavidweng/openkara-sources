@@ -248,10 +248,10 @@ const methods = {
           id: String(diss.tid),
           name: diss.diss_name,
           description: null,
-          artwork: resource(diss.diss_cover),
+          artwork: diss.diss_cover ? resource(diss.diss_cover) : null,
           track_count: diss.song_cnt,
         })),
-      next_cursor: list.length > 0 && next < body.data.totoal ? String(next) : null,
+      next_cursor: list.length === PLAYLIST_PAGE ? String(next) : null,
     };
   },
 
