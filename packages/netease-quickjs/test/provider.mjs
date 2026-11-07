@@ -1,5 +1,5 @@
 // Offline provider checks with a stubbed host: China Client Address, device id,
-// eapi routing, song URL levels, trial detection, and QR sign-in.
+// eapi routing, song URL levels, trial detection, and web sign-in.
 import assert from "node:assert/strict";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
@@ -116,35 +116,24 @@ const addresses = new Set(requests.map((r) => r.headers["X-Real-IP"]));
 assert.equal(addresses.size, 1);
 assert.ok(requests.every((r) => r.url.startsWith("https://interfacepc.music.163.com/eapi/")));
 
-// QR sign-in.
+// Web sign-in: the official page supplies the cookies, NetEase confirms them.
 await methods["auth.sign_out"]();
 requests.length = 0;
-responder = ({ uri }) => (uri === "/api/login/qrcode/unikey" ? { code: 200, unikey: "KEY1" } : { code: 200 });
 const start = await methods["auth.start"]();
-assert.equal(start.presentation.kind, "qr");
-assert.equal(start.presentation.content, "https://music.163.com/login?codekey=KEY1");
-assert.equal(requests[0].data.type, 3);
-
-for (const [code, state] of [[801, "pending"], [802, "pending"], [800, "expired"]]) {
-  responder = () => ({ code: 200, unikey: "KEY1" });
-  const second = code === 800 ? await methods["auth.start"]() : start;
-  responder = () => ({ code });
-  const polled = await methods["auth.poll"]({ challenge: second.challenge });
-  assert.equal(polled.state, state);
-}
-responder = () => ({ code: 200, unikey: "KEY2" });
-const fresh = await methods["auth.start"]();
+assert.deepEqual(start.presentation, { kind: "web" });
+assert.equal(requests.length, 0);
+await assert.rejects(methods["auth.poll"]({ challenge: start.challenge }), { code: "unsupported_operation" });
+await assert.rejects(methods["auth.complete"]({ challenge: start.challenge, credentials: { MUSIC_U: "x" } }), {
+  code: "authentication_required",
+});
+await assert.rejects(methods["auth.complete"]({ challenge: "unknown", credentials }), { code: "challenge_expired" });
 responder = ({ uri }) =>
-  uri === "/api/login/qrcode/client/login"
-    ? { code: 803, setCookies: ["MUSIC_U=new-token; Path=/", "__csrf=new-csrf; Path=/", "NMTID=nm; Path=/"] }
-    : account;
-const done = await methods["auth.poll"]({ challenge: fresh.challenge });
-assert.equal(done.state, "complete");
-assert.deepEqual(done.credentials, { MUSIC_U: "new-token", __csrf: "new-csrf" });
+  uri === "/api/nuser/account/get" ? { setCookies: ["NMTID=nm; Path=/"], body: account } : { code: 200 };
+const done = await methods["auth.complete"]({ challenge: start.challenge, credentials });
+assert.deepEqual(done.credentials, credentials);
 assert.equal(done.session.account.id, "42");
-const check = requests.findLast((r) => r.uri === "/api/login/qrcode/client/login");
-assert.deepEqual([check.data.key, check.data.type], ["KEY2", 3]);
+assert.equal(requests.at(-1).data.header.MUSIC_U, credentials.MUSIC_U);
+await methods["search"]({ query: "a", cursor: null }).catch(() => {});
 assert.match(requests.at(-1).headers.Cookie, /NMTID=nm/);
-await assert.rejects(methods["auth.complete"]({}), { code: "unsupported_operation" });
 
 console.log("provider checks ok");

@@ -14,7 +14,7 @@ import { call as upstreamCall, chinaClientAddress } from "./upstream.mjs";
 const MANIFEST = {
   package_id: "org.openkara.netease-quickjs",
   source_id: "netease",
-  version: "2.1.0",
+  version: "2.1.1",
   name: "NetEase Cloud Music",
   description: "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
   capabilities: [
@@ -26,7 +26,12 @@ const MANIFEST = {
     "preview",
     "import",
   ],
-  authentication: { flow: "plugin", presentations: ["qr"] },
+  authentication: {
+    flow: "web",
+    sign_in_url: "https://music.163.com/#/login",
+    navigation_origins: ["https://music.163.com"],
+    cookie_names: ["MUSIC_U", "__csrf"],
+  },
   requires_authentication: [
     "search",
     "liked_tracks",
@@ -43,7 +48,6 @@ const TRACK_CACHE_LIMIT = 20000;
 const CURSOR_LIMIT = 256;
 const CURSOR_TTL_MS = 30 * 60 * 1000;
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
-const QR_POLL_MS = 2000;
 const DEVICE_ID_KEY = "device-id";
 const PREVIEW_LEVEL = "exhigh";
 const IMPORT_LEVEL = "lossless";
@@ -268,9 +272,7 @@ function persistentDeviceId() {
   return deviceId;
 }
 
-// Returns { body, cookies }. `accept` lists the top-level codes that are
-// results rather than failures.
-async function upstreamFull(operation, query, credentials = state.cookie, accept = [200]) {
+async function upstream(operation, query, credentials = state.cookie) {
   const device = persistentDeviceId();
   let response;
   try {
@@ -289,12 +291,8 @@ async function upstreamFull(operation, query, credentials = state.cookie, accept
   }
   const code = response?.body?.code;
   if (code === undefined) fail("internal", "NetEase returned an unreadable response");
-  if (!accept.includes(code)) upstreamError(code);
-  return { body: response.body, cookies: response.cookies };
-}
-
-async function upstream(operation, query, credentials = state.cookie) {
-  return (await upstreamFull(operation, query, credentials)).body;
+  if (code !== 200) upstreamError(code);
+  return response.body;
 }
 
 function requireSession() {
@@ -479,59 +477,37 @@ const methods = {
 
   "auth.start": async () => {
     state.challenges.clear();
-    const started = state.epoch;
-    const wasCancelled = useCancellation();
-    const { unikey } = await upstream("qr_key", {}, null);
-    if (wasCancelled() || started !== state.epoch || !isText(unikey))
-      fail("internal", "NetEase did not provide a sign-in code");
     const challenge = openkara.encoding.base64Encode(openkara.crypto.randomBytes(18), {
       urlSafe: true,
       padding: false,
     });
     const expires = Date.now() + CHALLENGE_TTL_MS;
-    state.challenges.set(challenge, { state: "pending", expires, unikey });
+    state.challenges.set(challenge, { state: "pending", expires });
     return {
       challenge,
       expires_at: new Date(expires).toISOString(),
-      poll_after_ms: QR_POLL_MS,
-      presentation: {
-        kind: "qr",
-        content: `https://music.163.com/login?codekey=${unikey}`,
-        text: "Scan the code with the NetEase Cloud Music app and confirm the sign-in.",
-      },
+      presentation: { kind: "web" },
     };
   },
 
-  "auth.poll": async (params) => {
+  "auth.poll": async () => fail("unsupported_operation"),
+
+  "auth.complete": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
     const entry = state.challenges.get(params.challenge);
     if (!entry) fail("challenge_expired");
     if (entry.state === "pending" && Date.now() >= entry.expires) entry.state = "expired";
-    if (entry.state !== "pending") return { state: entry.state };
-    const started = state.epoch;
-    const wasCancelled = useCancellation();
-    const { body, cookies } = await upstreamFull(
-      "qr_check",
-      { key: entry.unikey },
-      null,
-      [800, 801, 802, 803],
-    );
-    if (wasCancelled() || started !== state.epoch || entry.state !== "pending")
-      return { state: entry.state === "pending" ? "cancelled" : entry.state };
-    if (body.code === 800) {
-      entry.state = "expired";
-      return { state: "expired" };
-    }
-    if (body.code !== 803) return { state: "pending", poll_after_ms: QR_POLL_MS };
-    const credentials = parseCredentials({ MUSIC_U: cookies.MUSIC_U, __csrf: cookies.__csrf });
+    if (entry.state !== "pending") fail("challenge_expired");
+    const credentials = parseCredentials(params?.credentials);
     if (!credentials)
-      fail("authentication_required", "NetEase sign-in did not provide a complete session. Try again.");
+      fail(
+        "authentication_required",
+        "NetEase sign-in did not provide a complete session. Try signing in again.",
+      );
     const session = await signIn(credentials);
-    if (!session) return { state: "cancelled" };
-    return { state: "complete", session, credentials };
+    if (!session) return state.session;
+    return { session, credentials };
   },
-
-  "auth.complete": async () => fail("unsupported_operation"),
 
   "auth.cancel": async (params) => {
     if (!isText(params?.challenge)) fail("invalid_request");
