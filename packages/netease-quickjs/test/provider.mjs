@@ -86,6 +86,21 @@ const downloadCall = requests.find((r) => r.uri === "/api/song/enhance/download/
 assert.deepEqual([downloadCall.data.id, downloadCall.data.level], ["7", "lossless"]);
 assert.equal(requests.some((r) => r.uri.endsWith("/player/url/v1")), false);
 
+// An APE download is not decodable, so import falls back to the player API.
+requests.length = 0;
+responder = ({ uri }) =>
+  uri === "/api/v3/song/detail"
+    ? { code: 200, songs: [song()], privileges: [privilege] }
+    : uri === "/api/song/enhance/download/url/v1"
+      ? { code: 200, data: { ...goodUrl, url: "https://m801.music.126.net/a.ape", type: "APE", encodeType: "mp3" } }
+      : uri === "/api/song/enhance/player/url/v1"
+        ? { code: 200, data: [goodUrl] }
+        : { code: 200 };
+resolved = await methods["media.resolve"]({ track_id: "7", purpose: "import" });
+assert.equal(resolved.kind, "media");
+assert.equal(resolved.media.file_extension, "flac");
+assert.equal(requests.find((r) => r.uri === "/api/song/enhance/player/url/v1").data.level, "lossless");
+
 // Import falls back to player v1 at lossless without a download URL.
 requests.length = 0;
 responder = ({ uri }) =>
