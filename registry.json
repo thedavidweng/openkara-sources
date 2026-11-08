@@ -231,8 +231,8 @@
             2
           ],
           "minimum_host_version": "0.21.0",
-          "size": 27150,
-          "integrity": "sha512-n82SH0mfMst2a8H/HcN2R74NGYcGnSnsSRW6hBvRkEBxErfbDH8l5oWHycuOzeCRdzfUrzTrNb+PD2C/J+Y2gQ==",
+          "size": 27151,
+          "integrity": "sha512-8uJoYv0COIezSRfTjuvREgIAQpC8QTewlv01k2WsVPfxYqDZuyFiiucGk7SNfrg5YhvlEZhUPh16/spiGoM+Aw==",
           "urls": [
             "https://github.com/thedavidweng/openkara-sources/releases/download/qqmusic-quickjs-v1.0.1/openkara-source-qqmusic-1.0.1.tar.gz"
           ],

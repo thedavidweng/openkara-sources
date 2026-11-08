@@ -156,7 +156,7 @@ async function verify(credentials) {
   uin = id;
   session = {
     state: "signed_in",
-    account: { id, display_name: creator.nick || `QQ ${id}` },
+    account: { id, display_name: creator.nick?.trim() || `QQ ${id}` },
   };
   return session;
 }
