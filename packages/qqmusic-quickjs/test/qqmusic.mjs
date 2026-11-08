@@ -12,15 +12,21 @@ const info = { mid: song.songmid, name: "晴天", interval: 269, singer: song.si
 
 let vkey; // what the next vkey call answers
 let totalSize; // size the CDN reports for the next ranged media GET
+let profileCookie; // cookie header of the last sign-in check
+let nick = "Listener";
 const requested = [];
 globalThis.openkara = {
   crypto: { randomBytes: (n) => new Uint8Array(n).fill(7) },
   encoding: { base64Encode: () => "challenge" },
-  async request({ url, body }) {
+  async request({ url, body, headers }) {
     const origin = /^https:\/\/[^/]+/.exec(url)?.[0];
     assert.ok(declared.includes(origin), `undeclared origin ${origin}`);
     requested.push(url);
     if (url.includes("RS02003Qui1q2u1Zho")) return { status: 206, headers: { "content-range": `bytes 0-0/${totalSize}` } };
+    if (url.includes("fcg_get_profile_homepage")) {
+      profileCookie = headers.cookie;
+      return { status: 200, body: { code: 0, data: { creator: { nick } } } };
+    }
     if (url.includes("client_search_cp"))
       return { status: 200, body: { data: { song: { list: [song, { songmid: "", songname: "x", singer: [] }], totalnum: 90 } } } };
     const req = JSON.parse(body);
@@ -70,4 +76,19 @@ totalSize = info.file.size_128mp3;
 const media = (await resolve()).media;
 assert.equal(media.url, "https://aqqmusic.tc.qq.com/RS02003Qui1q2u1Zho.mp3?vkey=1");
 assert.deepEqual([media.file_extension, media.bit_rate, media.size_bytes], ["mp3", 128000, info.file.size_128mp3]);
-console.log("qqmusic offline checks passed; network, vkey and sign-in are not covered");
+const challenge = (await run("auth.start", {})).challenge;
+const wechat = await run("auth.complete", {
+  challenge,
+  credentials: { wxuin: "1152921504000000001", qm_keyst: "W_X_key" },
+});
+assert.deepEqual(wechat.credentials, { uin: "1152921504000000001", qm_keyst: "W_X_key" }, "a WeChat account is stored as uin");
+assert.equal(wechat.session.account.id, "1152921504000000001");
+nick = "\u200b\u3000";
+const blank = await run("session.restore", { credentials: { uin: "1152921504000000001", qm_keyst: "W_X_key" } });
+assert.equal(blank.account.display_name, "QQ 1152921504000000001", "an invisible nickname falls back to the id");
+nick = "Listener";
+assert.match(profileCookie, /^uin=1152921504000000001; .*tmeLoginType=1$/);
+await run("session.restore", { credentials: { uin: "o0123456", qm_keyst: "Q_H_L_key" } });
+assert.match(profileCookie, /^uin=o0123456; .*tmeLoginType=2$/);
+
+console.log("qqmusic offline checks passed; network and vkey are not covered");

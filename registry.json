@@ -224,6 +224,43 @@
             "preview",
             "import"
           ]
+        },
+        {
+          "version": "1.0.1",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.21.0",
+          "size": 27319,
+          "integrity": "sha512-8esE4crhcYy3bZejz2o1JIgz7aZhnwVRM8RZyOsChlcZq82nZBlLcaBICPQayZkFgTAAAmMtnPI6YXFy33gCJw==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/qqmusic-quickjs-v1.0.1/openkara-source-qqmusic-1.0.1.tar.gz"
+          ],
+          "resource_origins": [
+            "https://c.y.qq.com",
+            "https://c6.y.qq.com",
+            "https://u.y.qq.com",
+            "https://y.gtimg.cn",
+            "https://qpic.y.qq.com"
+          ],
+          "media_origins": [
+            "https://ws.stream.qqmusic.qq.com",
+            "https://ws6.stream.qqmusic.qq.com",
+            "https://dl.stream.qqmusic.qq.com",
+            "https://isure.stream.qqmusic.qq.com",
+            "https://isure6.stream.qqmusic.qq.com",
+            "https://sjy.stream.qqmusic.qq.com",
+            "https://sjy6.stream.qqmusic.qq.com",
+            "https://aqqmusic.tc.qq.com"
+          ],
+          "capabilities": [
+            "search",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import"
+          ]
         }
       ]
     },

@@ -140,8 +140,13 @@ export function validateManifest(manifest, source) {
       problems.push("sign_in_url is not a URL");
     }
     if (!(auth.cookie_names ?? []).length) problems.push("cookie_names is empty");
-    for (const name of auth.cookie_names ?? []) {
-      if (!name || /[\r\n; =]/.test(name)) problems.push(`invalid cookie name ${JSON.stringify(name)}`);
+    // An entry is a cookie name or a nonempty list of alternative names (host 0.21.0+).
+    for (const entry of auth.cookie_names ?? []) {
+      const names = Array.isArray(entry) && entry.length ? entry : [entry];
+      for (const name of names) {
+        if (typeof name !== "string" || !name || /[\r\n; =]/.test(name))
+          problems.push(`invalid cookie name ${JSON.stringify(entry)}`);
+      }
     }
   }
   return problems;
