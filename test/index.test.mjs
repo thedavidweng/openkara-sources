@@ -145,6 +145,11 @@ test("payload validation catches host-rule violations", () => {
   bad((p) => (p.sources[0].releases[0].manifest.entry = "src/worker.js"), "entry");
   bad((p) => (p.sources[0].releases[0].manifest.media_origins = ["https://x.example.com/"]), "origin");
   bad((p) => (p.sources[0].releases[0].manifest.authentication.cookie_names = ["a b"]), "cookie name");
+  const alternatives = clone();
+  alternatives.sources[0].releases[0].manifest.authentication.cookie_names = [["uin", "wxuin"], "key"];
+  assert.deepEqual(validateIndexPayload(alternatives), []);
+  bad((p) => (p.sources[0].releases[0].manifest.authentication.cookie_names = [[]]), "cookie name");
+  bad((p) => (p.sources[0].releases[0].manifest.authentication.cookie_names = [["uin", "a=b"]]), "cookie name");
   bad((p) => (p.sources[0].releases[0].runtime.targets["macos-aarch64"].executable = "../node"), "executable");
 });
 

@@ -130,11 +130,17 @@ async function details(ids) {
   return found;
 }
 
+// A QQ sign-in names the account cookie `uin`; a WeChat sign-in names it `wxuin`.
+function account({ uin, wxuin, qm_keyst: key }) {
+  return { uin: uin ?? wxuin, qm_keyst: key };
+}
+
 async function verify(credentials) {
-  const { uin: rawUin, qm_keyst: key } = credentials;
+  const { uin: rawUin, qm_keyst: key } = account(credentials);
   if (!UIN.test(rawUin) || !COOKIE_VALUE.test(key)) fail("session_expired");
   const id = rawUin.replace(/^o?0*/, "");
-  const header = `uin=${rawUin}; qm_keyst=${key}; qqmusic_key=${key}; tmeLoginType=2`;
+  const loginType = key.startsWith("W_X") ? 1 : 2;
+  const header = `uin=${rawUin}; qm_keyst=${key}; qqmusic_key=${key}; tmeLoginType=${loginType}`;
   const tk = hash33(key);
   const body = await call(
     "https://c6.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cv=4747474&ct=24&format=json" +
@@ -198,10 +204,9 @@ const methods = {
 
   "auth.complete": async (params) => {
     if (challenge?.id !== params.challenge || Date.now() >= challenge.expires) fail("challenge_expired");
-    const { uin: rawUin, qm_keyst: key } = params.credentials;
     const signedIn = await verify(params.credentials);
     challenge = null;
-    return { session: signedIn, credentials: { uin: rawUin, qm_keyst: key } };
+    return { session: signedIn, credentials: account(params.credentials) };
   },
 
   "auth.cancel": async (params) => {

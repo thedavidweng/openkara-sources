@@ -3,8 +3,8 @@
   "package_id": "org.openkara.qqmusic-quickjs",
   "publisher": "org.openkara",
   "source_id": "qqmusic",
-  "version": "1.0.0",
-  "minimum_host_version": "0.19.0",
+  "version": "1.0.1",
+  "minimum_host_version": "0.21.0",
   "protocol": {
     "majors": [
       2
@@ -33,10 +33,14 @@
     "navigation_origins": [
       "https://y.qq.com",
       "https://xui.ptlogin2.qq.com",
-      "https://graph.qq.com"
+      "https://graph.qq.com",
+      "https://open.weixin.qq.com"
     ],
     "cookie_names": [
-      "uin",
+      [
+        "uin",
+        "wxuin"
+      ],
       "qm_keyst"
     ]
   },
