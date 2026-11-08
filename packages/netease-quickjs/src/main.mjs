@@ -437,7 +437,14 @@ async function songData(id, purpose) {
     } catch (error) {
       if (error?.code !== "internal") throw error;
     }
-    if (isObject(download) && (httpsUrl(download.url) || download.freeTrialInfo)) return download;
+    // The download API can serve formats OpenKara cannot decode, such as APE;
+    // the player API then supplies the same level as FLAC or MP3.
+    if (
+      isObject(download) &&
+      (download.freeTrialInfo ||
+        (httpsUrl(download.url) && AUDIO_EXTENSIONS.includes(String(download.type).toLowerCase())))
+    )
+      return download;
   }
   const body = await authed("song_url", {
     id,
