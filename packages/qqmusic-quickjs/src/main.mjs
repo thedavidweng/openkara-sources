@@ -135,6 +135,9 @@ function account({ uin, wxuin, qm_keyst: key }) {
   return { uin: uin ?? wxuin, qm_keyst: key };
 }
 
+// WeChat accounts can carry a nickname made only of invisible characters.
+const visible = (text) => typeof text === "string" && /[^\p{Cc}\p{Cf}\p{Z}]/u.test(text);
+
 async function verify(credentials) {
   const { uin: rawUin, qm_keyst: key } = account(credentials);
   if (!UIN.test(rawUin) || !COOKIE_VALUE.test(key)) fail("session_expired");
@@ -156,7 +159,7 @@ async function verify(credentials) {
   uin = id;
   session = {
     state: "signed_in",
-    account: { id, display_name: creator.nick?.trim() || `QQ ${id}` },
+    account: { id, display_name: visible(creator.nick) ? creator.nick.trim() : `QQ ${id}` },
   };
   return session;
 }
