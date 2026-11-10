@@ -43,6 +43,12 @@ globalThis.openkara = {
 };
 
 const { default: methods } = await import("../src/main.mjs");
+const { default: manifest } = await import("../manifest.json", { with: { type: "json" } });
+
+// describe reports the manifest identity; the host rejects any mismatch.
+const description = methods.describe({ protocol_majors: [2] });
+assert.equal(description.package_version, manifest.version);
+assert.equal(description.package_id, manifest.package_id);
 const credentials = { MUSIC_U: "synthetic-token", __csrf: "synthetic-csrf" };
 const account = { code: 200, account: { id: 42 }, profile: { nickname: "Tester" } };
 const song = (extra = {}) => ({ id: 7, name: "Song", dt: 200000, ar: [], al: {}, fee: 0, ...extra });

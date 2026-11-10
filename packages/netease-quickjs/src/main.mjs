@@ -8,39 +8,8 @@
 // clearTimeout exist beside this module.
 
 import { call as upstreamCall, chinaClientAddress } from "./upstream.mjs";
-
-// Manifest identity, mirrored here so describe answers without I/O. Keep in
-// sync with ../manifest.json.
-const MANIFEST = {
-  package_id: "org.openkara.netease-quickjs",
-  source_id: "netease",
-  version: "2.1.1",
-  name: "NetEase Cloud Music",
-  description: "Browse your NetEase Cloud Music library and preview or import full-length tracks you are permitted to play.",
-  capabilities: [
-    "search",
-    "liked_tracks",
-    "playlists",
-    "playlist_tracks",
-    "track_details",
-    "preview",
-    "import",
-  ],
-  authentication: {
-    flow: "web",
-    sign_in_url: "https://music.163.com/#/login",
-    navigation_origins: ["https://music.163.com"],
-    cookie_names: ["MUSIC_U", "__csrf"],
-  },
-  requires_authentication: [
-    "search",
-    "liked_tracks",
-    "playlists",
-    "playlist.tracks",
-    "tracks.get",
-    "media.resolve",
-  ],
-};
+// Inlined by the bundler, so describe reports exactly what the manifest declares.
+import manifest from "../manifest.json" with { type: "json" };
 
 const PAGE_SIZE = { search: 30, liked_tracks: 100, playlists: 200, playlist_tracks: 100 };
 const DETAIL_BATCH = 500;
@@ -66,23 +35,6 @@ const RESOURCE_ORIGINS = [
   "https://p2.music.126.net",
   "https://p3.music.126.net",
   "https://p4.music.126.net",
-];
-const MEDIA_ORIGINS = [
-  "https://m7.music.126.net",
-  "https://m701.music.126.net",
-  "https://m702.music.126.net",
-  "https://m703.music.126.net",
-  "https://m704.music.126.net",
-  "https://m8.music.126.net",
-  "https://m801.music.126.net",
-  "https://m802.music.126.net",
-  "https://m803.music.126.net",
-  "https://m804.music.126.net",
-  "https://m10.music.126.net",
-];
-const REQUEST_ORIGINS = [
-  "https://music.163.com",
-  "https://interfacepc.music.163.com",
 ];
 
 function fail(code, message) {
@@ -391,14 +343,14 @@ function describe(params) {
     fail("incompatible_plugin");
   return {
     protocol: { major: 2, minor: 0 },
-    package_id: MANIFEST.package_id,
-    source_id: MANIFEST.source_id,
-    package_version: MANIFEST.version,
-    name: MANIFEST.name,
-    description: MANIFEST.description,
-    capabilities: MANIFEST.capabilities,
-    authentication: MANIFEST.authentication,
-    requires_authentication: MANIFEST.requires_authentication,
+    package_id: manifest.package_id,
+    source_id: manifest.source_id,
+    package_version: manifest.version,
+    name: manifest.name,
+    description: manifest.description,
+    capabilities: manifest.capabilities,
+    authentication: manifest.authentication,
+    requires_authentication: manifest.requires_authentication,
     session: state.session,
   };
 }
@@ -674,7 +626,7 @@ const methods = {
     const extension = typeof data.type === "string" ? data.type.toLowerCase() : "";
     if (!AUDIO_EXTENSIONS.includes(extension))
       fail("internal", "NetEase returned an unsupported audio format");
-    if (!MEDIA_ORIGINS.includes(url.origin))
+    if (!manifest.media_origins.includes(url.origin))
       return {
         kind: "refusal",
         refusal: refusal(
@@ -702,10 +654,3 @@ const methods = {
 // Unknown methods never reach this module: the host rejects them as
 // unsupported_operation before dispatch.
 export default methods;
-
-// Test seam: reset in-memory session state between unit runs.
-function __resetStateForTests() {
-  state = createState();
-}
-const __manifestForTests = MANIFEST;
-const __requestOriginsForTests = REQUEST_ORIGINS;

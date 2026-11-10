@@ -3,7 +3,7 @@
   "package_id": "org.openkara.netease-quickjs",
   "publisher": "org.openkara",
   "source_id": "netease",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "minimum_host_version": "0.19.0",
   "protocol": {
     "majors": [
