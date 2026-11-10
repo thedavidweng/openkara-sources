@@ -8,6 +8,7 @@
 // clearTimeout exist beside this module.
 
 import { call as upstreamCall, chinaClientAddress } from "./upstream.mjs";
+import { lyricsFrom } from "./lyrics.mjs";
 // Inlined by the bundler, so describe reports exactly what the manifest declares.
 import manifest from "../manifest.json" with { type: "json" };
 
@@ -609,6 +610,11 @@ const methods = {
       items: unique.flatMap((id) => (found.has(id) ? [found.get(id)] : [])),
       missing_ids: unique.filter((id) => !found.has(id)),
     };
+  },
+
+  "lyrics.get": async (params) => {
+    if (!isText(params?.track_id) || !NUMERIC_ID.test(params.track_id)) fail("invalid_request");
+    return { lyrics: lyricsFrom(await upstream("song_lyric", { id: params.track_id })) };
   },
 
   "media.resolve": async (params) => {

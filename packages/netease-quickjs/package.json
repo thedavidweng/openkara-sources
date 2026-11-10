@@ -1,13 +1,13 @@
 {
   "name": "org.openkara.netease-quickjs",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "bundle": "node tools/bundle.mjs --out dist/entry.mjs",
     "pack": "node tools/bundle.mjs --out dist/entry.mjs && python3 tools/pack.py --out dist",
-    "test": "node --check src/main.mjs && node --check src/upstream.mjs && node --check src/crypto.mjs && node --check tools/bundle.mjs && node test/weapi-vector.mjs && node test/provider.mjs && node tools/bundle.mjs --out /tmp/verify-entry.mjs"
+    "test": "node --check src/main.mjs && node --check src/upstream.mjs && node --check src/crypto.mjs && node --check src/lyrics.mjs && node --check tools/bundle.mjs && node test/weapi-vector.mjs && node test/provider.mjs && node tools/bundle.mjs --out /tmp/verify-entry.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1"

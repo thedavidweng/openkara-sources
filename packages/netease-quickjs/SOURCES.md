@@ -20,6 +20,12 @@
   `download/url/v1` by level, download duration check). Behavior was ported;
   no Kumone source code is copied or linked.
 
+- MyGo Music NetEase plugin (AGPL-3.0-or-later, Kaede Akino,
+  `https://github.com/AkinoKaede/mygo-music-netease-cloud-music`):
+  `src/playback.ts` (`/api/song/lyric/v1` request fields and the YRC word
+  pattern). The YRC-to-TTML conversion in `src/lyrics.mjs` follows it; no
+  source file is copied.
+
 ## In-repo sources
 
 - Provider logic: `../netease/src/*.mjs` (AGPL-3.0-only, same worktree).

@@ -220,6 +220,49 @@
             "preview",
             "import"
           ]
+        },
+        {
+          "version": "2.2.0",
+          "protocol_majors": [
+            2
+          ],
+          "minimum_host_version": "0.19.0",
+          "size": 40328,
+          "integrity": "sha512-XkjNDFpLR3lUis+goBilEwAYgHNmWzoSvv1pl7KELcXPryqrj4xJyfDsM+OUJYN9zSvFpqnvCl3WpF/ojL/jeQ==",
+          "urls": [
+            "https://github.com/thedavidweng/openkara-sources/releases/download/netease-quickjs-v2.2.0/openkara-source-netease-2.2.0.tar.gz"
+          ],
+          "resource_origins": [
+            "https://p1.music.126.net",
+            "https://p2.music.126.net",
+            "https://p3.music.126.net",
+            "https://p4.music.126.net",
+            "https://music.163.com",
+            "https://interfacepc.music.163.com"
+          ],
+          "media_origins": [
+            "https://m7.music.126.net",
+            "https://m701.music.126.net",
+            "https://m702.music.126.net",
+            "https://m703.music.126.net",
+            "https://m704.music.126.net",
+            "https://m8.music.126.net",
+            "https://m801.music.126.net",
+            "https://m802.music.126.net",
+            "https://m803.music.126.net",
+            "https://m804.music.126.net",
+            "https://m10.music.126.net"
+          ],
+          "capabilities": [
+            "search",
+            "liked_tracks",
+            "playlists",
+            "playlist_tracks",
+            "track_details",
+            "preview",
+            "import",
+            "lyrics"
+          ]
         }
       ]
     },
