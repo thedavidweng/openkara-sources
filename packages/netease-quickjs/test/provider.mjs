@@ -157,4 +157,31 @@ assert.equal(requests.at(-1).data.header.MUSIC_U, credentials.MUSIC_U);
 await methods["search"]({ query: "a", cursor: null }).catch(() => {});
 assert.match(requests.at(-1).headers.Cookie, /NMTID=nm/);
 
+// Lyrics: YRC becomes word-timed TTML, otherwise LRC without the JSON credit
+// lines, otherwise null. Signed-out sources can answer.
+await methods["auth.sign_out"]();
+const credit = '{"t":0,"c":[{"tx":"作词: "},{"tx":"A & B"}]}';
+const lyricReply = (body) => ({ uri }) => (uri === "/api/song/lyric/v1" ? { code: 200, ...body } : { code: 200 });
+responder = lyricReply({
+  yrc: { lyric: `${credit}\n[1000,900](1000,400,0)Hi (1400,500,0)<there>\n[3000,500](3000,500,0) ` },
+  lrc: { lyric: "[00:01.00]Hi there" },
+});
+let lyrics = await methods["lyrics.get"]({ track_id: "7" });
+assert.equal(requests.at(-1).data.id, "7");
+assert.equal(lyrics.lyrics.format, "ttml");
+assert.equal(
+  lyrics.lyrics.text,
+  '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="1.000s" end="1.900s">' +
+    '<span begin="1.000s" end="1.400s">Hi</span> <span begin="1.400s" end="1.900s">&lt;there&gt;</span>' +
+    "</p></div></body></tt>",
+);
+responder = lyricReply({ lrc: { lyric: `${credit}\n[00:01.00]Hi there` }, yrc: { lyric: "" } });
+lyrics = await methods["lyrics.get"]({ track_id: "7" });
+assert.deepEqual(lyrics.lyrics, { format: "lrc", text: "[00:01.00]Hi there\n" });
+for (const flag of ["nolyric", "uncollected"]) {
+  responder = lyricReply({ [flag]: true, lrc: { lyric: "[00:00.00]暂无歌词" } });
+  assert.deepEqual(await methods["lyrics.get"]({ track_id: "7" }), { lyrics: null });
+}
+await assert.rejects(methods["lyrics.get"]({ track_id: "x" }), { code: "invalid_request" });
+
 console.log("provider checks ok");

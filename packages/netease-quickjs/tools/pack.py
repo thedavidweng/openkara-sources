@@ -27,6 +27,7 @@ FILES = [
     "src/main.mjs",
     "src/upstream.mjs",
     "src/crypto.mjs",
+    "src/lyrics.mjs",
     "LICENSE",
     "NOTICE",
     "SOURCES.md",

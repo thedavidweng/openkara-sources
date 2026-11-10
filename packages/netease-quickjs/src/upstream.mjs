@@ -137,6 +137,11 @@ const OPERATIONS = {
     uri: "/api/song/enhance/player/url/v1",
     data: (query) => ({ ids: `[${query.id}]`, level: query.level, encodeType: "flac" }),
   },
+  // Line (lrc) and word-timed (yrc) lyrics; anonymous access works.
+  song_lyric: {
+    uri: "/api/song/lyric/v1",
+    data: (query) => ({ id: query.id, cp: false, tv: 0, lv: 0, rv: 0, kv: 0, yv: 0, ytv: 0, yrv: 0 }),
+  },
   // Kumone songDownloadURL: download eligibility is resolved separately.
   song_download_url: {
     uri: "/api/song/enhance/download/url/v1",

@@ -14,6 +14,10 @@ runtime. Single self-contained ES module, no Node or browser globals.
   `openkara.encoding`.
 - Sign-in opens the official NetEase web page (`auth.start` / `auth.complete`),
   which offers QR, SMS code, and password sign-in.
+- `src/lyrics.mjs`: `lyrics.get` (protocol 2.2 `lyrics` capability) reads
+  `/api/song/lyric/v1` without a sign-in. YRC becomes word-timed TTML; songs
+  without YRC return their LRC. Credit lines and "no lyrics" placeholders are
+  dropped.
 - Song URLs are requested by quality level: `exhigh` for preview, `lossless`
   (download endpoint, then player endpoint) for import.
 - Provider logic (search, liked tracks, playlists, details, rights mapping,
