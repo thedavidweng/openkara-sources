@@ -11,7 +11,7 @@
     "node": ">=24 <25"
   },
   "overrides": {
-    "basic-ftp": "6.2.3",
-    "node-forge": "https://codeload.github.com/digitalbazaar/forge/tar.gz/ceba34402e329f0365134f23fe19898756527d65"
+    "basic-ftp": "6.2.6",
+    "node-forge": "1.4.3"
   }
 }

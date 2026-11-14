@@ -63,14 +63,11 @@ the published index.
 
 ## Development
 
-The NetEase dependency lock overrides `basic-ftp` to 6.2.3 for its directory parser
-security fix. Until node-forge publishes a fixed stable release, its override uses
-the immutable commit `ceba34402e329f0365134f23fe19898756527d65` from
-[upstream PR 1152](https://github.com/digitalbazaar/forge/pull/1152), with the
-archive integrity recorded in the lockfile. This patch rejects extra nested
-DigestAlgorithm elements (CVE-2026-85393). The real archive test checks a valid
-signature and the malformed nested structure in the installed package. Replace the override
-with the fixed stable version when upstream publishes it.
+The NetEase dependency lock overrides `basic-ftp` to 6.2.6 for its directory parser
+security fixes and `node-forge` to 1.4.3, which rejects extra nested DigestAlgorithm
+elements (CVE-2026-85393). The real archive test checks a valid signature and the
+malformed nested structure in the installed package. Drop each override once the
+upstream dependency resolves to a fixed version on its own.
 
 Node 24 is required (`node --test` suites run offline except the real-archive test, which runs
 `npm ci`; set `OPENKARA_SKIP_NETWORK_TESTS=1` to skip it).
