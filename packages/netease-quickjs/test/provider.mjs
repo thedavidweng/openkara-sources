@@ -1,5 +1,5 @@
 // Offline provider checks with a stubbed host: China Client Address, device id,
-// eapi routing, song URL levels, trial detection, and web sign-in.
+// eapi/weapi routing, song URL levels, trial detection, and web sign-in.
 import assert from "node:assert/strict";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
@@ -7,6 +7,7 @@ const bytes = (value) => Buffer.from(value);
 const storage = new Map();
 const requests = [];
 let responder = () => ({ code: 200 });
+let weapiKey = "";
 
 globalThis.openkara = {
   encoding: {
@@ -25,16 +26,31 @@ globalThis.openkara = {
       return Buffer.concat([cipher.update(bytes(data)), cipher.final()]);
     },
     randomBytes: (length) => randomBytes(length),
+    // weapi passes its reversed per-request AES key here; keep it to decode.
+    rsaPublic: (_key, data) => {
+      weapiKey = [...bytes(data).toString()].reverse().join("");
+      return new Uint8Array(128);
+    },
   },
   storage: {
     get: (key) => storage.get(key),
     set: (key, value) => storage.set(key, value),
   },
   async request(options) {
-    const decipher = createDecipheriv("aes-128-ecb", "e82ckenh8dichen8", null);
     const params = new URLSearchParams(options.body).get("params");
-    const plain = Buffer.concat([decipher.update(Buffer.from(params, "hex")), decipher.final()]).toString();
-    const [uri, json] = plain.split("-36cd479b6b5-");
+    let uri, json;
+    if (options.url.includes("/weapi/")) {
+      const cbc = (key, text) => {
+        const decipher = createDecipheriv("aes-128-cbc", key, "0102030405060708");
+        return Buffer.concat([decipher.update(Buffer.from(text, "base64")), decipher.final()]).toString();
+      };
+      uri = `/api/${options.url.split("/weapi/")[1]}`;
+      json = cbc("0CoJUm6Qyw8W8jud", cbc(weapiKey, params));
+    } else {
+      const decipher = createDecipheriv("aes-128-ecb", "e82ckenh8dichen8", null);
+      const plain = Buffer.concat([decipher.update(Buffer.from(params, "hex")), decipher.final()]).toString();
+      [uri, json] = plain.split("-36cd479b6b5-");
+    }
     const entry = { url: options.url, headers: options.headers, uri, data: JSON.parse(json) };
     requests.push(entry);
     const reply = responder(entry);
@@ -75,13 +91,16 @@ function mediaReply(path, data) {
 }
 const goodUrl = { id: 7, url: "https://m801.music.126.net/a.flac", type: "flac", time: 200000 };
 
-// Preview: player v1 at exhigh.
+// Preview: player v1 at exhigh, over weapi with the session cookies.
 requests.length = 0;
 responder = mediaReply("/api/song/enhance/player/url/v1", [goodUrl]);
 let resolved = await methods["media.resolve"]({ track_id: "7", purpose: "preview" });
 assert.equal(resolved.media.file_extension, "flac");
 const playerCall = requests.find((r) => r.uri === "/api/song/enhance/player/url/v1");
+assert.equal(playerCall.url, "https://music.163.com/weapi/song/enhance/player/url/v1");
 assert.deepEqual([playerCall.data.ids, playerCall.data.level, playerCall.data.encodeType], ["[7]", "exhigh", "flac"]);
+assert.equal(playerCall.data.csrf_token, credentials.__csrf);
+assert.equal(playerCall.headers.Cookie, `MUSIC_U=${credentials.MUSIC_U}; __csrf=${credentials.__csrf}`);
 
 // Import: download endpoint at lossless.
 requests.length = 0;
@@ -132,10 +151,25 @@ responder = mediaReply("/api/song/enhance/player/url/v1", [{ ...goodUrl, time: 2
 resolved = await methods["media.resolve"]({ track_id: "7", purpose: "preview" });
 assert.equal(resolved.kind, "media");
 
-// One China Client Address, and every operation on eapi.
+// Risk control (-460) is a retryable limit, not an internal failure.
+responder = ({ uri }) =>
+  uri === "/api/song/enhance/player/url/v1"
+    ? { code: -460, message: "检测到您的网络环境存在风险，请稍后再试" }
+    : mediaReply("/api/song/enhance/player/url/v1", [goodUrl])({ uri });
+await assert.rejects(methods["media.resolve"]({ track_id: "7", purpose: "preview" }), { code: "rate_limited" });
+
+// One China Client Address; the player URL on weapi, everything else on eapi.
 const addresses = new Set(requests.map((r) => r.headers["X-Real-IP"]));
 assert.equal(addresses.size, 1);
-assert.ok(requests.every((r) => r.url.startsWith("https://interfacepc.music.163.com/eapi/")));
+assert.ok(
+  requests.every((r) =>
+    r.url.startsWith(
+      r.uri === "/api/song/enhance/player/url/v1"
+        ? "https://music.163.com/weapi/"
+        : "https://interfacepc.music.163.com/eapi/",
+    ),
+  ),
+);
 
 // Web sign-in: the official page supplies the cookies, NetEase confirms them.
 await methods["auth.sign_out"]();

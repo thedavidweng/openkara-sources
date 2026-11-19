@@ -176,7 +176,8 @@ function upstreamError(code) {
     fail("session_expired", "NetEase rejected the saved sign-in. Sign in again.");
   if (code === 404) fail("not_found", "NetEase could not find that item.");
   if (code === 502) fail("network", "NetEase request failed");
-  if (code === 405 || code === 429)
+  // -460 is NetEase's risk control: 检测到您的网络环境存在风险，请稍后再试.
+  if (code === 405 || code === 429 || code === -460)
     fail("rate_limited", "NetEase is limiting requests. Try again shortly.");
   fail("internal", `NetEase rejected the request (code ${code})`);
 }
