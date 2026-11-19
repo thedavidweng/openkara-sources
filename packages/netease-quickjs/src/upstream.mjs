@@ -2,16 +2,20 @@
 // QuickJS upstream adapter: request construction of the NetEase API modules at
 // @neteasecloudmusicapienhanced/api 4.41.1 (module/*.js + util/createOption.js
 // + the eapi branch of util/request.js), aligned with the eapi request shape
-// Kumone uses (LGPL-3.0, behavioral reference only; see SOURCES.md). Every
-// operation goes through eapi on the interface host. Uses only the frozen
-// protocol-2 host API: openkara.request for transport, openkara.crypto for the
-// eapi wire, no Node globals.
+// Kumone uses (LGPL-3.0, behavioral reference only; see SOURCES.md). Operations
+// go through eapi on the interface host, except song_url, which goes through
+// weapi on the web host because NetEase answers its eapi form with risk-control
+// code -460. Uses only the frozen protocol-2 host API: openkara.request for
+// transport, openkara.crypto for the wire, no Node globals.
 
-import { eapi } from "./crypto.mjs";
+import { eapi, randomKey16, weapi } from "./crypto.mjs";
 
 const DOMAIN = "https://music.163.com";
 const EAPI_DOMAIN = "https://interfacepc.music.163.com";
 const UA_API_IPHONE = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)";
+// 4.41.1 userAgentMap pc row, the agent its weapi branch sends.
+const UA_WEB =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0";
 
 // 4.41.1 osMap pc row: the exact wire defaults of the eapi header.
 const OS_DEFAULTS = {
@@ -64,14 +68,38 @@ export function parseSetCookies(setCookies) {
   return out;
 }
 
-// Kumone MusicClient.eapi header fields, with `e_r: false`.
-function buildRequest(uri, data, options) {
-  const cookie = options.cookie || {};
-  const headers = {};
+function baseHeaders(options) {
+  const headers = { Referer: DOMAIN };
   if (options.realIP) {
     headers["X-Real-IP"] = options.realIP;
     headers["X-Forwarded-For"] = options.realIP;
   }
+  return headers;
+}
+
+// 4.41.1 util/request.js weapi branch: csrf_token in the payload, session
+// cookies in the header.
+function buildWeapiRequest(uri, data, options) {
+  const cookie = options.cookie || {};
+  data.csrf_token = cookie.__csrf || "";
+  const headers = baseHeaders(options);
+  headers.Cookie = encodeCookie({
+    MUSIC_U: cookie.MUSIC_U,
+    __csrf: cookie.__csrf,
+    NMTID: nmtid || undefined,
+  });
+  headers["User-Agent"] = UA_WEB;
+  return {
+    url: `${DOMAIN}/weapi/${uri.slice(5)}`,
+    headers,
+    body: formEncode(weapi(data, randomKey16())),
+  };
+}
+
+// Kumone MusicClient.eapi header fields, with `e_r: false`.
+function buildRequest(uri, data, options) {
+  const cookie = options.cookie || {};
+  const headers = baseHeaders(options);
   const now = Date.now();
   const header = {
     osver: OS_DEFAULTS.osver,
@@ -92,7 +120,6 @@ function buildRequest(uri, data, options) {
   data.e_r = false;
   headers.Cookie = encodeCookie(header);
   headers["User-Agent"] = UA_API_IPHONE;
-  headers.Referer = DOMAIN;
   return {
     url: `${EAPI_DOMAIN}/eapi/${uri.slice(5)}`,
     headers,
@@ -134,6 +161,7 @@ const OPERATIONS = {
   },
   // Kumone songURL: playback URL by quality level.
   song_url: {
+    wire: "weapi",
     uri: "/api/song/enhance/player/url/v1",
     data: (query) => ({ ids: `[${query.id}]`, level: query.level, encodeType: "flac" }),
   },
@@ -152,7 +180,8 @@ const OPERATIONS = {
 export async function call(operation, query) {
   const spec = OPERATIONS[operation];
   if (!spec) throw Object.assign(new Error(`unknown operation ${operation}`), { code: "internal" });
-  const built = buildRequest(spec.uri, spec.data(query), query);
+  const build = spec.wire === "weapi" ? buildWeapiRequest : buildRequest;
+  const built = build(spec.uri, spec.data(query), query);
   // ENCRYPT_RESPONSE is false in the frozen 4.41.1 config (e_r false), so
   // responses arrive (and parse) as plain JSON.
   const response = await openkara.request({
